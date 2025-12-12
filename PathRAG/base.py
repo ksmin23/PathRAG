@@ -15,7 +15,7 @@ T = TypeVar("T")
 
 @dataclass
 class QueryParam:
-    mode: Literal["hybrid"] = "global"
+    mode: Literal["hybrid"] = "hybrid"
     only_need_context: bool = False
     only_need_prompt: bool = False
     response_type: str = "Multiple Paragraphs"
