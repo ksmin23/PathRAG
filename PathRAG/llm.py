@@ -48,6 +48,11 @@ else:
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
+class BedrockError(Exception):
+    """Exception raised for AWS Bedrock API errors."""
+    pass
+
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=10),
@@ -64,7 +69,6 @@ async def openai_complete_if_cache(
 ) -> str:
     if api_key:
         os.environ["OPENAI_API_KEY"] = api_key
-    time.sleep(2)
     openai_async_client = (
         AsyncOpenAI() if base_url is None else AsyncOpenAI(base_url=base_url)
     )

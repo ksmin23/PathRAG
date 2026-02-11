@@ -255,7 +255,6 @@ async def extract_entities(
     relationships_vdb: BaseVectorStorage,
     global_config: dict,
 ) -> Union[BaseGraphStorage, None]:
-    time.sleep(20)
     use_llm_func: callable = global_config["llm_model_func"]
     entity_extract_max_gleaning = global_config["entity_extract_max_gleaning"]
 
@@ -1179,13 +1178,13 @@ async def _find_most_related_edges_from_entities3(
             edge1 = await knowledge_graph_inst.get_edge(path[1],path[2]) or await knowledge_graph_inst.get_edge(path[2], path[1])
             edge2 = await knowledge_graph_inst.get_edge(path[2],path[3]) or await knowledge_graph_inst.get_edge(path[3], path[2])
             if edge0==None or edge1==None or edge2==None:
-                print(path,"边丢失")
+                print(path, "edge missing")
                 if edge0==None:
-                    print("edge0丢失")
+                    print("edge0 missing")
                 if edge1==None:
-                    print("edge1丢失")
+                    print("edge1 missing")
                 if edge2==None:
-                    print("edge2丢失")
+                    print("edge2 missing")
                 continue
             e1 = "through edge ("+edge0["keywords"]+") to connect to "+s_name+" and "+b1_name+"."
             e2 = "through edge ("+edge1["keywords"]+") to connect to "+b1_name+" and "+b2_name+"."
@@ -1204,7 +1203,7 @@ async def _find_most_related_edges_from_entities3(
             edge0 = await knowledge_graph_inst.get_edge(path[0], path[1]) or await knowledge_graph_inst.get_edge(path[1], path[0])
             edge1 = await knowledge_graph_inst.get_edge(path[1],path[2]) or await knowledge_graph_inst.get_edge(path[2], path[1])
             if edge0==None or edge1==None:
-                print(path,"边丢失")
+                print(path, "edge missing")
                 continue
             e1 = "through edge("+edge0["keywords"]+") to connect to "+s_name+" and "+b_name+"."
             e2 = "through edge("+edge1["keywords"]+") to connect to "+b_name+" and "+t_name+"."
@@ -1219,7 +1218,7 @@ async def _find_most_related_edges_from_entities3(
             s_name,t_name = path[0],path[1]
             edge0 = await knowledge_graph_inst.get_edge(path[0], path[1]) or await knowledge_graph_inst.get_edge(path[1], path[0])
             if edge0==None:
-                print(path,"边丢失")
+                print(path, "edge missing")
                 continue
             e = "through edge("+edge0["keywords"]+") to connect to "+s_name+" and "+t_name+"."
             s = await knowledge_graph_inst.get_node(s_name)
