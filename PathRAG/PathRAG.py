@@ -272,7 +272,6 @@ class PathRAG:
         }
 
     async def insert(self, string_or_strings):
-
         loop = always_get_an_event_loop()
         return await loop.run_until_complete(await self.ainsert(string_or_strings))
 

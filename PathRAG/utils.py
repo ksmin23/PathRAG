@@ -66,7 +66,6 @@ class EmbeddingFunc:
 
 
 def locate_json_string_body_from_string(content: str) -> Union[str, None]:
-
     try:
         maybe_json_str = re.search(r"{.*}", content, re.DOTALL)
         if maybe_json_str is not None:
@@ -102,7 +101,6 @@ def compute_mdhash_id(content, prefix: str = ""):
 
 
 def limit_async_func_call(max_size: int, waitting_time: float = 0.0001):
-
     def final_decro(func):
 
         __current_size = 0
@@ -123,7 +121,6 @@ def limit_async_func_call(max_size: int, waitting_time: float = 0.0001):
 
 
 def wrap_embedding_func_with_attrs(**kwargs):
-
     def final_decro(func) -> EmbeddingFunc:
         new_func = EmbeddingFunc(**kwargs, func=func)
         return new_func
@@ -182,7 +179,6 @@ def pack_user_ass_to_openai_messages(*args: str):
 
 
 def split_string_by_multi_markers(content: str, markers: list[str]) -> list[str]:
-
     if not markers:
         return [content]
     results = re.split("|".join(re.escape(marker) for marker in markers), content)
@@ -190,12 +186,10 @@ def split_string_by_multi_markers(content: str, markers: list[str]) -> list[str]
 
 
 def clean_str(input: Any) -> str:
-
     if not isinstance(input, str):
         return input
 
     result = html.unescape(input.strip())
-
     return re.sub(r"[\x00-\x1f\x7f-\x9f]", "", result)
 
 
@@ -204,7 +198,6 @@ def is_float_regex(value):
 
 
 def truncate_list_by_token_size(list_data: list, key: callable, max_token_size: int):
-
     if max_token_size <= 0:
         return []
     tokens = 0
@@ -411,7 +404,6 @@ async def get_best_cached_response(
 
 
 def cosine_similarity(v1, v2):
-
     dot_product = np.dot(v1, v2)
     norm1 = np.linalg.norm(v1)
     norm2 = np.linalg.norm(v2)
@@ -419,7 +411,6 @@ def cosine_similarity(v1, v2):
 
 
 def quantize_embedding(embedding: np.ndarray, bits=8) -> tuple:
-
     min_val = embedding.min()
     max_val = embedding.max()
 
@@ -432,13 +423,11 @@ def quantize_embedding(embedding: np.ndarray, bits=8) -> tuple:
 def dequantize_embedding(
     quantized: np.ndarray, min_val: float, max_val: float, bits=8
 ) -> np.ndarray:
-
     scale = (max_val - min_val) / (2**bits - 1)
     return (quantized * scale + min_val).astype(np.float32)
 
 
 async def handle_cache(hashing_kv, args_hash, prompt, mode="default"):
-
     if hashing_kv is None:
         return None, None, None, None
 
