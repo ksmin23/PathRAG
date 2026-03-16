@@ -29,6 +29,7 @@ class UnlimitedSemaphore:
 
 
 ENCODER = None
+ENCODER_MODEL_NAME = None
 
 logger = logging.getLogger("PathRAG")
 
@@ -147,19 +148,34 @@ def write_json(json_obj, file_name):
         json.dump(json_obj, f, indent=2, ensure_ascii=False)
 
 
-def encode_string_by_tiktoken(content: str, model_name: str = "gpt-4o-mini"):
-    global ENCODER
-    if ENCODER is None:
+def _get_tiktoken_encoder(model_name: str):
+    """Get a tiktoken encoder for the given model name.
+
+    Falls back to cl100k_base encoding when the model is not recognized by
+    tiktoken (e.g. Gemini, Bedrock, Ollama models).  cl100k_base is used by
+    GPT-4 / GPT-3.5 and provides a reasonable token-count approximation for
+    most LLMs.
+    """
+    global ENCODER, ENCODER_MODEL_NAME
+    if ENCODER is not None and ENCODER_MODEL_NAME == model_name:
+        return ENCODER
+    try:
         ENCODER = tiktoken.encoding_for_model(model_name)
-    tokens = ENCODER.encode(content)
+    except KeyError:
+        ENCODER = tiktoken.get_encoding("cl100k_base")
+    ENCODER_MODEL_NAME = model_name
+    return ENCODER
+
+
+def encode_string_by_tiktoken(content: str, model_name: str = "gpt-4o-mini"):
+    encoder = _get_tiktoken_encoder(model_name)
+    tokens = encoder.encode(content)
     return tokens
 
 
 def decode_tokens_by_tiktoken(tokens: list[int], model_name: str = "gpt-4o-mini"):
-    global ENCODER
-    if ENCODER is None:
-        ENCODER = tiktoken.encoding_for_model(model_name)
-    content = ENCODER.decode(tokens)
+    encoder = _get_tiktoken_encoder(model_name)
+    content = encoder.decode(tokens)
     return content
 
 

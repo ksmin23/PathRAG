@@ -5,7 +5,6 @@ from tqdm.asyncio import tqdm as tqdm_async
 from typing import Union
 from collections import Counter, defaultdict
 import warnings
-import tiktoken
 import time
 import csv
 from .utils import (
