@@ -36,6 +36,11 @@ from .base import (
 from .prompt import GRAPH_FIELD_SEP, PROMPTS
 
 
+# ---------------------------------------------------------------------------
+# Chunking – Splits documents into overlapping token-sized chunks
+# ---------------------------------------------------------------------------
+
+
 def chunking_by_token_size(
     content: str, overlap_token_size=128, max_token_size=1024, tiktoken_model="gpt-4o"
 ):
@@ -55,6 +60,11 @@ def chunking_by_token_size(
             }
         )
     return results
+
+
+# ---------------------------------------------------------------------------
+# Entity Extraction – LLM-based extraction of entities and relationships
+# ---------------------------------------------------------------------------
 
 
 async def _handle_entity_relation_summary(
@@ -455,6 +465,10 @@ async def extract_entities(
 
     return knowledge_graph_inst
 
+
+# ---------------------------------------------------------------------------
+# KG Query – Main query handler with keyword extraction and context building
+# ---------------------------------------------------------------------------
 
 
 async def kg_query(
@@ -995,6 +1009,13 @@ def combine_contexts(entities, relationships, sources):
     combined_sources = process_combine_contexts(hl_sources, ll_sources)
 
     return combined_entities, combined_relationships, combined_sources
+
+
+# ---------------------------------------------------------------------------
+# Path Finding – Core PathRAG algorithm: finds multi-hop paths between
+# retrieved entities, weights them by traversal frequency, and converts
+# surviving paths to natural language descriptions.
+# ---------------------------------------------------------------------------
 
 
 async def find_paths_and_edges_with_stats(graph, target_nodes):

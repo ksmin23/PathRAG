@@ -144,10 +144,10 @@ class QueryParam:
 | Component | File | Purpose |
 |-----------|------|---------|
 | **PathRAG** | `PathRAG.py` | Main orchestrator class, manages all storage and coordinates pipelines |
-| **Chunking** | `operate.py:39-57` | Splits documents into overlapping token-sized chunks |
-| **Entity Extraction** | `operate.py:252-456` | LLM-based extraction of entities and relationships |
-| **KG Query** | `operate.py:460-575` | Main query handler with keyword extraction and context building |
-| **Path Finding** | `operate.py:1000-1220` | **Core PathRAG algorithm** - finds multi-hop paths |
+| **Chunking** | `operate.py:44-62` | Splits documents into overlapping token-sized chunks |
+| **Entity Extraction** | `operate.py:262-466` | LLM-based extraction of entities and relationships |
+| **KG Query** | `operate.py:474-590` | Main query handler with keyword extraction and context building |
+| **Path Finding** | `operate.py:1021-1240` | **Core PathRAG algorithm** - finds multi-hop paths |
 | **Storage Classes** | `storage.py` | KV, Vector, and Graph storage implementations |
 | **LLM Integration** | `llm.py` | Provider-agnostic LLM/embedding support via LiteLLM (OpenAI, Gemini, Bedrock, Anthropic, Ollama, etc.) |
 | **Prompts** | `prompt.py` | All LLM prompt templates |
