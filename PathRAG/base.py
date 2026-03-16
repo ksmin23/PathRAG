@@ -32,11 +32,9 @@ class StorageNameSpace:
     global_config: dict
 
     async def index_done_callback(self):
-
         pass
 
     async def query_done_callback(self):
-
         pass
 
 
@@ -49,7 +47,6 @@ class BaseVectorStorage(StorageNameSpace):
         raise NotImplementedError
 
     async def upsert(self, data: dict[str, dict]):
-
         raise NotImplementedError
 
 
@@ -69,7 +66,6 @@ class BaseKVStorage(Generic[T], StorageNameSpace):
         raise NotImplementedError
 
     async def filter_keys(self, data: list[str]) -> set[str]:
-
         raise NotImplementedError
 
     async def upsert(self, data: dict[str, T]):
