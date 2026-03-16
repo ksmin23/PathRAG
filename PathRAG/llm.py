@@ -1373,6 +1373,102 @@ async def vllm_embedding(texts: list[str], tokenizer, embed_model) -> np.ndarray
 
 
 
+## ---------------------------------------------------------------------------
+## LiteLLM unified interface – works with any provider supported by LiteLLM
+## Model name examples:
+##   OpenAI      : "gpt-4o", "gpt-4o-mini"
+##   Azure       : "azure/<deployment>"
+##   Anthropic   : "anthropic/claude-3-opus-20240229"
+##   Google      : "gemini/gemini-pro"
+##   Bedrock     : "bedrock/anthropic.claude-3-haiku-20240307-v1:0"
+##   Ollama      : "ollama/llama3"
+##   Together    : "together_ai/meta-llama/Llama-3-70b-chat-hf"
+##   And many more – see https://docs.litellm.ai/docs/providers
+## ---------------------------------------------------------------------------
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type((Exception,)),
+)
+async def litellm_complete_if_cache(
+    model,
+    prompt,
+    system_prompt=None,
+    history_messages=[],
+    **kwargs,
+) -> str:
+    import litellm
+
+    kwargs.pop("hashing_kv", None)
+    kwargs.pop("keyword_extraction", None)
+
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.extend(history_messages)
+    messages.append({"role": "user", "content": prompt})
+
+    logger.debug("===== Query Input to LLM (litellm) =====")
+    logger.debug(f"Model: {model}")
+    logger.debug(f"Query: {prompt}")
+    logger.debug(f"System prompt: {system_prompt}")
+
+    # Remove unsupported kwargs for litellm
+    kwargs.pop("response_format", None)
+
+    response = await litellm.acompletion(model=model, messages=messages, **kwargs)
+
+    if hasattr(response, "__aiter__"):
+        async def inner():
+            async for chunk in response:
+                content = chunk.choices[0].delta.content
+                if content is None:
+                    continue
+                if r"\u" in content:
+                    content = safe_unicode_decode(content.encode("utf-8"))
+                yield content
+        return inner()
+    else:
+        content = response.choices[0].message.content
+        if r"\u" in content:
+            content = safe_unicode_decode(content.encode("utf-8"))
+        return content
+
+
+async def litellm_complete(
+    prompt, system_prompt=None, history_messages=[], keyword_extraction=False, **kwargs
+) -> Union[str, AsyncIterator[str]]:
+    keyword_extraction = kwargs.pop("keyword_extraction", None)
+    if keyword_extraction:
+        kwargs["response_format"] = "json"
+    model_name = kwargs["hashing_kv"].global_config["llm_model_name"]
+    return await litellm_complete_if_cache(
+        model_name,
+        prompt,
+        system_prompt=system_prompt,
+        history_messages=history_messages,
+        **kwargs,
+    )
+
+
+@wrap_embedding_func_with_attrs(embedding_dim=1536, max_token_size=8192)
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=60),
+    retry=retry_if_exception_type((Exception,)),
+)
+async def litellm_embedding(
+    texts: list[str],
+    model: str = "text-embedding-3-small",
+    **kwargs,
+) -> np.ndarray:
+    import litellm
+
+    response = await litellm.aembedding(model=model, input=texts, **kwargs)
+    return np.array([dp["embedding"] for dp in response.data])
+
+
 class Model(BaseModel):
     """
     This is a Pydantic model class named 'Model' that is used to define a custom language model.
