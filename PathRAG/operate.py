@@ -1,8 +1,6 @@
 import asyncio
-import csv
 import json
 import re
-import time
 import warnings
 from collections import Counter, defaultdict
 from typing import Union
@@ -573,7 +571,6 @@ async def kg_query(
             .strip()
         )
 
-
     await save_to_cache(
         hashing_kv,
         CacheData(
@@ -661,7 +658,6 @@ async def _build_query_context(
             [hl_text_units_context, ll_text_units_context],
         )
 
-
     return f"""
 -----global-information-----
 -----high-level entity information-----
@@ -687,6 +683,7 @@ async def _build_query_context(
 ```
 """
 
+
 async def _get_node_data(
     query,
     knowledge_graph_inst: BaseGraphStorage,
@@ -704,7 +701,6 @@ async def _get_node_data(
     )
     if not all([n is not None for n in node_datas]):
         logger.warning("Some nodes are missing, maybe the storage is damaged")
-
 
     node_degrees = await asyncio.gather(
         *[knowledge_graph_inst.node_degree(r["entity_name"]) for r in results]
@@ -775,7 +771,6 @@ async def _find_most_related_text_unit_from_entities(
         *[knowledge_graph_inst.get_node(e) for e in all_one_hop_nodes]
     )
 
-
     all_one_hop_text_units_lookup = {
         k: set(split_string_by_multi_markers(v["source_id"], [GRAPH_FIELD_SEP]))
         for k, v in zip(all_one_hop_nodes, all_one_hop_nodes_data)
@@ -799,7 +794,6 @@ async def _find_most_related_text_unit_from_entities(
                         and c_id in all_one_hop_text_units_lookup[e[1]]
                     ):
                         all_text_units_lookup[c_id]["relation_counts"] += 1
-
 
     all_text_units = [
         {"id": k, **v}
@@ -974,7 +968,6 @@ async def _find_related_text_unit_from_relationships(
     all_text_units = [{"id": k, **v} for k, v in all_text_units_lookup.items()]
     all_text_units = sorted(all_text_units, key=lambda x: x["order"])
 
-
     valid_text_units = [
         t for t in all_text_units if t["data"] is not None and "content" in t["data"]
     ]
@@ -1081,7 +1074,9 @@ def bfs_weighted_paths(G, paths, source, target, threshold, alpha):
 
         if edge_weights[(node, neighbor)] > threshold:
             for second_neighbor in follow_dict[neighbor]:
-                weight = edge_weights[(node, neighbor)] * alpha / len(follow_dict[neighbor])
+                weight = (
+                    edge_weights[(node, neighbor)] * alpha / len(follow_dict[neighbor])
+                )
                 edge_weights[(neighbor, second_neighbor)] += weight
 
                 if second_neighbor == target:
@@ -1098,12 +1093,16 @@ def bfs_weighted_paths(G, paths, source, target, threshold, alpha):
                         edge_weights[(second_neighbor, third_neighbor)] += weight
 
                         if third_neighbor == target:
-                            results.append([node, neighbor, second_neighbor, third_neighbor])
+                            results.append(
+                                [node, neighbor, second_neighbor, third_neighbor]
+                            )
                             continue
 
     path_weights = []
     for p in paths:
-        path_weight = sum(edge_weights.get((p[i], p[i + 1]), 0) for i in range(len(p) - 1))
+        path_weight = sum(
+            edge_weights.get((p[i], p[i + 1]), 0) for i in range(len(p) - 1)
+        )
         path_weights.append(path_weight / (len(p) - 1))
 
     return list(zip(paths, path_weights))
@@ -1122,9 +1121,13 @@ async def _find_most_related_edges_from_entities3(
         G.add_edge(u, v)
     G.add_nodes_from(nodes)
     source_nodes = [dp["entity_name"] for dp in node_datas]
-    result, path_stats, one_hop_paths, two_hop_paths, three_hop_paths = (
-        await find_paths_and_edges_with_stats(G, source_nodes)
-    )
+    (
+        result,
+        path_stats,
+        one_hop_paths,
+        two_hop_paths,
+        three_hop_paths,
+    ) = await find_paths_and_edges_with_stats(G, source_nodes)
 
     threshold = 0.3
     alpha = 0.8
@@ -1166,18 +1169,15 @@ async def _find_most_related_edges_from_entities3(
     for path in final_result:
         if len(path) == 4:
             s_name, b1_name, b2_name, t_name = path[0], path[1], path[2], path[3]
-            edge0 = (
-                await knowledge_graph_inst.get_edge(path[0], path[1])
-                or await knowledge_graph_inst.get_edge(path[1], path[0])
-            )
-            edge1 = (
-                await knowledge_graph_inst.get_edge(path[1], path[2])
-                or await knowledge_graph_inst.get_edge(path[2], path[1])
-            )
-            edge2 = (
-                await knowledge_graph_inst.get_edge(path[2], path[3])
-                or await knowledge_graph_inst.get_edge(path[3], path[2])
-            )
+            edge0 = await knowledge_graph_inst.get_edge(
+                path[0], path[1]
+            ) or await knowledge_graph_inst.get_edge(path[1], path[0])
+            edge1 = await knowledge_graph_inst.get_edge(
+                path[1], path[2]
+            ) or await knowledge_graph_inst.get_edge(path[2], path[1])
+            edge2 = await knowledge_graph_inst.get_edge(
+                path[2], path[3]
+            ) or await knowledge_graph_inst.get_edge(path[3], path[2])
             if edge0 is None or edge1 is None or edge2 is None:
                 logger.warning(f"{path} edge missing")
                 continue
@@ -1198,14 +1198,12 @@ async def _find_most_related_edges_from_entities3(
 
         elif len(path) == 3:
             s_name, b_name, t_name = path[0], path[1], path[2]
-            edge0 = (
-                await knowledge_graph_inst.get_edge(path[0], path[1])
-                or await knowledge_graph_inst.get_edge(path[1], path[0])
-            )
-            edge1 = (
-                await knowledge_graph_inst.get_edge(path[1], path[2])
-                or await knowledge_graph_inst.get_edge(path[2], path[1])
-            )
+            edge0 = await knowledge_graph_inst.get_edge(
+                path[0], path[1]
+            ) or await knowledge_graph_inst.get_edge(path[1], path[0])
+            edge1 = await knowledge_graph_inst.get_edge(
+                path[1], path[2]
+            ) or await knowledge_graph_inst.get_edge(path[2], path[1])
             if edge0 is None or edge1 is None:
                 logger.warning(f"{path} edge missing")
                 continue
@@ -1223,10 +1221,9 @@ async def _find_most_related_edges_from_entities3(
 
         elif len(path) == 2:
             s_name, t_name = path[0], path[1]
-            edge0 = (
-                await knowledge_graph_inst.get_edge(path[0], path[1])
-                or await knowledge_graph_inst.get_edge(path[1], path[0])
-            )
+            edge0 = await knowledge_graph_inst.get_edge(
+                path[0], path[1]
+            ) or await knowledge_graph_inst.get_edge(path[1], path[0])
             if edge0 is None:
                 logger.warning(f"{path} edge missing")
                 continue
@@ -1238,7 +1235,6 @@ async def _find_most_related_edges_from_entities3(
                 f"The entity {t_name} is a {t['entity_type']} with description({t['description']})"
             )
             relationship.append([desc])
-
 
     relationship = truncate_list_by_token_size(
         relationship,
