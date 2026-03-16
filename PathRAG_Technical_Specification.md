@@ -144,10 +144,10 @@ class QueryParam:
 | Component | File | Purpose |
 |-----------|------|---------|
 | **PathRAG** | `PathRAG.py` | Main orchestrator class, manages all storage and coordinates pipelines |
-| **Chunking** | `operate.py:38-56` | Splits documents into overlapping token-sized chunks |
-| **Entity Extraction** | `operate.py:251-456` | LLM-based extraction of entities and relationships |
-| **KG Query** | `operate.py:460-585` | Main query handler with keyword extraction and context building |
-| **Path Finding** | `operate.py:1014-1239` | **Core PathRAG algorithm** - finds multi-hop paths |
+| **Chunking** | `operate.py:39-57` | Splits documents into overlapping token-sized chunks |
+| **Entity Extraction** | `operate.py:252-456` | LLM-based extraction of entities and relationships |
+| **KG Query** | `operate.py:460-575` | Main query handler with keyword extraction and context building |
+| **Path Finding** | `operate.py:1000-1220` | **Core PathRAG algorithm** - finds multi-hop paths |
 | **Storage Classes** | `storage.py` | KV, Vector, and Graph storage implementations |
 | **LLM Integration** | `llm.py` | Provider-agnostic LLM/embedding support via LiteLLM (OpenAI, Gemini, Bedrock, Anthropic, Ollama, etc.) |
 | **Prompts** | `prompt.py` | All LLM prompt templates |
@@ -554,7 +554,7 @@ def bfs_weighted_paths(G, paths, source, target, threshold=0.3, alpha=0.8):
 ### 6.4 Path-to-Natural-Language Conversion
 
 ```python
-async def _find_most_related_edges_from_entities3(node_datas, query_param, knowledge_graph):
+async def _find_most_related_edges_from_entities3(node_datas, query_param, knowledge_graph_inst):
     """
     Convert graph paths to natural language relationship descriptions.
 
@@ -564,12 +564,17 @@ async def _find_most_related_edges_from_entities3(node_datas, query_param, knowl
 
     # 1. Build NetworkX graph from storage
     G = nx.Graph()
-    G.add_edges_from(await knowledge_graph.edges())
-    G.add_nodes_from(await knowledge_graph.nodes())
+    edges = await knowledge_graph_inst.edges()
+    nodes = await knowledge_graph_inst.nodes()
+    for u, v in edges:
+        G.add_edge(u, v)
+    G.add_nodes_from(nodes)
 
     # 2. Find all paths between retrieved entities
     source_nodes = [dp["entity_name"] for dp in node_datas]
-    result, stats, one_hop, two_hop, three_hop = await find_paths_and_edges_with_stats(G, source_nodes)
+    result, path_stats, one_hop_paths, two_hop_paths, three_hop_paths = (
+        await find_paths_and_edges_with_stats(G, source_nodes)
+    )
 
     # 3. Weight and prune paths
     threshold = 0.3  # Pruning threshold
@@ -579,47 +584,59 @@ async def _find_most_related_edges_from_entities3(node_datas, query_param, knowl
     for node1 in source_nodes:
         for node2 in source_nodes:
             if node1 != node2 and (node1, node2) in result:
-                paths = result[(node1, node2)]['paths']
+                paths = result[(node1, node2)]["paths"]
                 weighted = bfs_weighted_paths(G, paths, node1, node2, threshold, alpha)
-                all_results.extend(weighted)
+                all_results += weighted
 
     # 4. Sort by weight and deduplicate
     all_results = sorted(all_results, key=lambda x: x[1], reverse=True)
-    unique_paths = deduplicate_paths(all_results)
+    seen = set()
+    result_edge = []
+    for edge, weight in all_results:
+        sorted_edge = tuple(sorted(edge))
+        if sorted_edge not in seen:
+            seen.add(sorted_edge)
+            result_edge.append((edge, weight))
 
     # 5. Select top paths (max 15)
-    top_paths = unique_paths[:15]
+    total_edges = min(15, len(results))
+    sort_result = result_edge[:total_edges] if result_edge else []
+    final_result = [edge for edge, weight in sort_result]
 
-    # 6. Convert to natural language
-    relationships = []
-    for path, weight in top_paths:
+    # 6. Convert to natural language using f-strings
+    relationship = []
+    for path in final_result:
         if len(path) == 2:
             # 1-hop: A --[relation]--> B
             s_name, t_name = path[0], path[1]
-            edge = await knowledge_graph.get_edge(s_name, t_name)
-            s_node = await knowledge_graph.get_node(s_name)
-            t_node = await knowledge_graph.get_node(t_name)
-
-            description = (
-                f"The entity {s_name} is a {s_node['entity_type']} "
-                f"with description({s_node['description']}) "
-                f"through edge({edge['keywords']}) to connect to {s_name} and {t_name}. "
-                f"The entity {t_name} is a {t_node['entity_type']} "
-                f"with description({t_node['description']})"
+            edge0 = (
+                await knowledge_graph_inst.get_edge(path[0], path[1])
+                or await knowledge_graph_inst.get_edge(path[1], path[0])
             )
-            relationships.append(description)
+            if edge0 is None:
+                continue
+            s = await knowledge_graph_inst.get_node(s_name)
+            t = await knowledge_graph_inst.get_node(t_name)
+            desc = (
+                f"The entity {s_name} is a {s['entity_type']} "
+                f"with description({s['description']}) "
+                f"through edge({edge0['keywords']}) to connect to {s_name} and {t_name}. "
+                f"The entity {t_name} is a {t['entity_type']} "
+                f"with description({t['description']})"
+            )
+            relationship.append([desc])
 
         elif len(path) == 3:
             # 2-hop: A --[rel1]--> B --[rel2]--> C
-            s, bridge, t = path[0], path[1], path[2]
+            s_name, b_name, t_name = path[0], path[1], path[2]
             # ... similar construction with bridge entity
 
         elif len(path) == 4:
             # 3-hop: A --[rel1]--> B1 --[rel2]--> B2 --[rel3]--> C
-            s, b1, b2, t = path[0], path[1], path[2], path[3]
+            s_name, b1_name, b2_name, t_name = path[0], path[1], path[2], path[3]
             # ... similar construction with two bridge entities
 
-    return relationships
+    return relationship[::-1]
 ```
 
 ### 6.5 Pruning Parameters
