@@ -230,19 +230,19 @@ async def bedrock_complete_if_cache(
 
 @lru_cache(maxsize=1)
 def initialize_hf_model(model_name):
-    # 是否使用 GPU，如果无 GPU 则回退到 CPU
+    # Use GPU if available, otherwise fall back to CPU
     use_gpu = torch.cuda.is_available()
     dtype = torch.bfloat16 if use_gpu else torch.float32
     device_map = "auto" if use_gpu else "cpu"
 
-    # 加载 tokenizer
+    # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(
         model_name,
         trust_remote_code=True,
-        use_fast=False  # 有些模型如 Qwen 不支持 fast tokenizer
+        use_fast=False  # Some models (e.g. Qwen) do not support fast tokenizer
     )
 
-    # 加载模型
+    # Load model
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         trust_remote_code=True,
@@ -251,7 +251,7 @@ def initialize_hf_model(model_name):
         low_cpu_mem_usage=True
     )
 
-    # 设置 pad_token
+    # Set pad_token
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -313,7 +313,7 @@ async def hf_model_if_cache(
 
     input_ids = hf_tokenizer(
         input_prompt, return_tensors="pt", padding=True, truncation=True
-    )#修改.to("cuda")
+    )  # moved .to("cuda") to device-aware mapping below
     inputs = {k: v.to(hf_model.device) for k, v in input_ids.items()}
     output = hf_model.generate(
         **input_ids, max_new_tokens=512, num_return_sequences=1
@@ -646,7 +646,7 @@ async def zhipu_complete_if_cache(
     messages = []
 
     if not system_prompt:
-        system_prompt = "You are a helpful assistant. 注意内容里的敏感词用***替换。"
+        system_prompt = "You are a helpful assistant."
 
 
     if system_prompt:
@@ -1069,7 +1069,7 @@ async def ollama_embed(texts: list[str], embed_model, **kwargs) -> np.ndarray:
 
 @lru_cache(maxsize=1)
 def initialize_ms_model(model_name: str):
-    """加载 ModelScope 聊天模型并缓存（底层实现）"""
+    """Load and cache a ModelScope chat model."""
     tokenizer = ms.AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     model = ms.AutoModelForCausalLM.from_pretrained(
         model_name,
@@ -1246,7 +1246,7 @@ async def local_model_if_cache(
     response_text = local_tokenizer.decode(
         output[0][len(inputs["input_ids"][0]) :], skip_special_tokens=True
     )
-    # print("response_text",response_text)#修改
+    # print("response_text", response_text)  # debug
     return response_text
 
 async def local_model_complete(
@@ -1272,8 +1272,8 @@ async def local_model_complete(
 
 @lru_cache(maxsize=1)
 def initialize_vllm_model(model_name: str):
-    """加载 vLLM 聊天模型并缓存"""
-    model = LLM(model_name, device=device, max_model_len=8192)#修改
+    """Load and cache a vLLM chat model."""
+    model = LLM(model_name, device=device, max_model_len=8192)
     return model
 
 
@@ -1291,7 +1291,7 @@ async def vllm_model_if_cache(
 ) -> str:
     vllm_model = initialize_vllm_model(model)
 
-    # 构建多轮对话格式
+    # Build multi-turn conversation messages
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
