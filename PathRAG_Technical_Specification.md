@@ -149,7 +149,7 @@ class QueryParam:
 | **KG Query** | `operate.py:460-585` | Main query handler with keyword extraction and context building |
 | **Path Finding** | `operate.py:1014-1239` | **Core PathRAG algorithm** - finds multi-hop paths |
 | **Storage Classes** | `storage.py` | KV, Vector, and Graph storage implementations |
-| **LLM Integration** | `llm.py` | Multi-provider LLM support (OpenAI, Azure, Bedrock, etc.) |
+| **LLM Integration** | `llm.py` | Provider-agnostic LLM/embedding support via LiteLLM (OpenAI, Gemini, Bedrock, Anthropic, Ollama, etc.) |
 | **Prompts** | `prompt.py` | All LLM prompt templates |
 
 ### 3.2 Storage Abstractions
@@ -718,6 +718,8 @@ Style response in markdown.
 chunk_token_size: int = 1200        # Maximum tokens per chunk
 chunk_overlap_token_size: int = 100 # Overlap between consecutive chunks
 tiktoken_model_name: str = "gpt-4o-mini"  # Model for tokenization
+# Note: tiktoken falls back to cl100k_base encoding for non-OpenAI models
+# (e.g. Gemini, Bedrock), providing a reasonable token-count approximation.
 ```
 
 ### 8.2 Entity Extraction Parameters
@@ -730,15 +732,31 @@ entity_summary_to_max_tokens: int = 500 # Max tokens for entity descriptions
 ### 8.3 Embedding Parameters
 
 ```python
-embedding_func: callable = openai_embedding  # Default embedding function
-embedding_batch_num: int = 32               # Batch size for embedding
-embedding_func_max_async: int = 16          # Max concurrent embedding calls
+# Embedding model is configured via embedding_model_name and embedding_dim.
+# Uses LiteLLM, so any supported provider works.
+# Examples:
+#   OpenAI  : embedding_model_name="text-embedding-3-small",  embedding_dim=1536
+#   Gemini  : embedding_model_name="gemini/text-embedding-004", embedding_dim=768
+#   Bedrock : embedding_model_name="bedrock/amazon.titan-embed-text-v2:0", embedding_dim=1024
+embedding_model_name: str = "text-embedding-3-small"  # LiteLLM model name
+embedding_dim: int = 1536                             # Must match the chosen model
+embedding_func: EmbeddingFunc = None                  # Auto-created from above; or pass a custom one
+embedding_batch_num: int = 32                         # Batch size for embedding
+embedding_func_max_async: int = 16                    # Max concurrent embedding calls
 ```
 
 ### 8.4 LLM Parameters
 
 ```python
-llm_model_func: callable = gpt_4o_mini_complete
+# LLM is configured via llm_model_func and llm_model_name.
+# Default uses LiteLLM (litellm_complete), supporting any provider.
+# Examples:
+#   OpenAI    : llm_model_name="gpt-4o"
+#   Gemini    : llm_model_name="gemini/gemini-2.0-flash"
+#   Anthropic : llm_model_name="anthropic/claude-sonnet-4-20250514"
+#   Bedrock   : llm_model_name="bedrock/anthropic.claude-3-haiku-20240307-v1:0"
+llm_model_func: callable = litellm_complete
+llm_model_name: str = "gpt-4o"
 llm_model_max_token_size: int = 32768
 llm_model_max_async: int = 16
 ```
@@ -845,8 +863,8 @@ class MinimalPathRAG:
 | **Extraction Prompt** | Edit `PROMPTS["entity_extraction"]` |
 | **Path Parameters** | Adjust `threshold`, `alpha`, `max_hops` |
 | **Storage Backend** | Implement `BaseKVStorage`, `BaseVectorStorage`, `BaseGraphStorage` |
-| **LLM Provider** | Add new function in `llm.py` matching signature |
-| **Embedding Model** | Provide custom `embedding_func` |
+| **LLM Provider** | Set `llm_model_name` to any LiteLLM-supported model (e.g. `gemini/gemini-2.0-flash`), or add a custom function in `llm.py` |
+| **Embedding Model** | Set `embedding_model_name` and `embedding_dim` (e.g. `gemini/text-embedding-004`, 768), or provide a custom `embedding_func` |
 
 ### 9.4 Performance Considerations
 
@@ -882,4 +900,4 @@ This provides richer context than standard RAG by surfacing **indirect semantic 
 
 ---
 
-*Generated from PathRAG codebase analysis - December 2024*
+*Generated from PathRAG codebase analysis - Updated March 2026*

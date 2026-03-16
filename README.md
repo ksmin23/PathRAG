@@ -170,11 +170,50 @@ with open(data_file) as f:
 
 print(rag.query(question, param=QueryParam(mode="hybrid")))
 ```
+##### Quick Start with LiteLLM (Multi-Provider Support)
+PathRAG uses [LiteLLM](https://docs.litellm.ai/docs/providers) for both LLM and embedding calls, so you can use **any supported provider** (OpenAI, Gemini, Bedrock, Anthropic, Ollama, etc.) by simply changing the model name.
+
+```python
+import os
+from PathRAG import PathRAG, QueryParam
+from PathRAG.llm import litellm_complete
+
+WORKING_DIR = "./your_working_dir"
+
+# Set the API key for your chosen provider
+os.environ["GEMINI_API_KEY"] = "your_gemini_api_key"
+
+if not os.path.exists(WORKING_DIR):
+    os.mkdir(WORKING_DIR)
+
+rag = PathRAG(
+    working_dir=WORKING_DIR,
+    llm_model_func=litellm_complete,
+    llm_model_name="gemini/gemini-2.0-flash",
+    # Embedding model configuration.
+    # Set embedding_model_name and embedding_dim to match the chosen model.
+    # Examples:
+    #   OpenAI  : embedding_model_name="text-embedding-3-small",  embedding_dim=1536
+    #   OpenAI  : embedding_model_name="text-embedding-3-large",  embedding_dim=3072
+    #   Gemini  : embedding_model_name="gemini/text-embedding-004", embedding_dim=768
+    #   Bedrock : embedding_model_name="bedrock/amazon.titan-embed-text-v2:0", embedding_dim=1024
+    embedding_model_name="gemini/text-embedding-004",
+    embedding_dim=768,
+)
+
+data_file = "./text.txt"
+question = "your_question"
+with open(data_file) as f:
+    rag.insert(f.read())
+
+print(rag.query(question, param=QueryParam(mode="hybrid")))
+```
+
 ##### Quick Start with models from different sources
 - You can use the model from huggingface, ollama, modelscope, local and vllm.
 - You can quickly experience this project in the `rag_test.py` file.
 - Select your model source—— hf / vllm / ollama / ms / local.
-- Prepare your llm_model，embedding_model and  retrieval document "your data file" . 
+- Prepare your llm_model，embedding_model and  retrieval document "your data file" .
 - Use the following Python snippet in the `rag_test.py` file to use models from different sources.
 - Detailed examples can be referred to `examples.txt`.
 
@@ -383,17 +422,19 @@ If you prefer to set up and run the components separately, follow these instruct
    LOG_LEVEL=info
    CORS_ORIGINS=http://localhost:3000
 
-   # AI Model Settings (choose one option)
-   # Option 1: Azure OpenAI
-   AZURE_OPENAI_API_KEY=your_azure_key
-   AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
-   AZURE_OPENAI_DEPLOYMENT=gpt-4o
-   AZURE_OPENAI_API_VERSION=2023-05-15
-   AZURE_EMBEDDING_DEPLOYMENT=text-embedding-3-large
+   # AI Model Settings (powered by LiteLLM – any provider supported)
+   # See https://docs.litellm.ai/docs/providers for model name format
+   LLM_MODEL_NAME=gpt-4o                           # e.g. gpt-4o, gemini/gemini-2.0-flash, anthropic/claude-sonnet-4-20250514
+   EMBEDDING_MODEL_NAME=text-embedding-3-small      # e.g. text-embedding-3-small, gemini/text-embedding-004
+   EMBEDDING_DIM=1536                               # Must match the chosen embedding model (e.g. 1536, 768, 1024)
 
-   # Option 2: OpenAI direct
-   OPENAI_API_KEY=your_openai_key
-   OPENAI_API_BASE=https://api.openai.com/v1
+   # Provider API Keys (set the ones you need)
+   OPENAI_API_KEY=your_openai_key                   # For OpenAI models
+   # GEMINI_API_KEY=your_gemini_key                 # For Gemini models
+   # ANTHROPIC_API_KEY=your_anthropic_key           # For Anthropic models
+   # AWS_ACCESS_KEY_ID=your_aws_key                 # For Bedrock models
+   # AWS_SECRET_ACCESS_KEY=your_aws_secret
+   # AWS_REGION_NAME=us-east-1
 
    # PathRAG Configuration
    CHUNK_SIZE=1200
