@@ -1469,6 +1469,38 @@ async def litellm_embedding(
     return np.array([dp["embedding"] for dp in response.data])
 
 
+def create_litellm_embedding(
+    model: str = "text-embedding-3-small",
+    embedding_dim: int = 1536,
+    max_token_size: int = 8192,
+) -> "EmbeddingFunc":
+    """Create an EmbeddingFunc for any LiteLLM-supported embedding model.
+
+    Examples:
+        OpenAI:  create_litellm_embedding("text-embedding-3-small", 1536)
+        Gemini:  create_litellm_embedding("gemini/text-embedding-004", 768)
+        Bedrock: create_litellm_embedding("bedrock/amazon.titan-embed-text-v2:0", 1024)
+    """
+    from .utils import EmbeddingFunc
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        retry=retry_if_exception_type((Exception,)),
+    )
+    async def _embed(texts: list[str], **kwargs) -> np.ndarray:
+        import litellm
+
+        response = await litellm.aembedding(model=model, input=texts, **kwargs)
+        return np.array([dp["embedding"] for dp in response.data])
+
+    return EmbeddingFunc(
+        embedding_dim=embedding_dim,
+        max_token_size=max_token_size,
+        func=_embed,
+    )
+
+
 class Model(BaseModel):
     """
     This is a Pydantic model class named 'Model' that is used to define a custom language model.

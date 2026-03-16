@@ -12,6 +12,7 @@ from .llm import (
     openai_embedding,
     litellm_complete,
     litellm_embedding,
+    create_litellm_embedding,
 )
 from .operate import (
     chunking_by_token_size,
@@ -147,7 +148,21 @@ class PathRAG:
     )
 
 
-    embedding_func: EmbeddingFunc = field(default_factory=lambda: litellm_embedding)
+    # Embedding model configuration.
+    # Uses LiteLLM under the hood, so any LiteLLM-supported provider works.
+    # Set embedding_model_name and embedding_dim to match the chosen model.
+    #
+    # Examples:
+    #   OpenAI  : embedding_model_name="text-embedding-3-small",  embedding_dim=1536
+    #   OpenAI  : embedding_model_name="text-embedding-3-large",  embedding_dim=3072
+    #   Gemini  : embedding_model_name="gemini/text-embedding-004", embedding_dim=768
+    #   Bedrock : embedding_model_name="bedrock/amazon.titan-embed-text-v2:0", embedding_dim=1024
+    #
+    # If embedding_func is None (default), it is auto-created from the above settings.
+    # You can also pass a custom EmbeddingFunc to override this behavior entirely.
+    embedding_model_name: str = "text-embedding-3-small"
+    embedding_dim: int = 1536
+    embedding_func: EmbeddingFunc = None
     embedding_batch_num: int = 32
     embedding_func_max_async: int = 16
 
@@ -184,6 +199,12 @@ class PathRAG:
         self.graph_storage_cls: Type[BaseGraphStorage] = self._get_storage_class()[
             self.graph_storage
         ]
+
+        if self.embedding_func is None:
+            self.embedding_func = create_litellm_embedding(
+                model=self.embedding_model_name,
+                embedding_dim=self.embedding_dim,
+            )
 
         if not os.path.exists(self.working_dir):
             logger.info(f"Creating working directory {self.working_dir}")
