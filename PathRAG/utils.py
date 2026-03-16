@@ -19,8 +19,6 @@ from PathRAG.prompt import PROMPTS
 
 
 class UnlimitedSemaphore:
-
-
     async def __aenter__(self):
         pass
 
@@ -81,7 +79,6 @@ def locate_json_string_body_from_string(content: str) -> Union[str, None]:
     except Exception:
         pass
 
-
         return None
 
 
@@ -106,7 +103,6 @@ def compute_mdhash_id(content, prefix: str = ""):
 
 def limit_async_func_call(max_size: int, waitting_time: float = 0.0001):
 
-
     def final_decro(func):
 
         __current_size = 0
@@ -127,7 +123,6 @@ def limit_async_func_call(max_size: int, waitting_time: float = 0.0001):
 
 
 def wrap_embedding_func_with_attrs(**kwargs):
-
 
     def final_decro(func) -> EmbeddingFunc:
         new_func = EmbeddingFunc(**kwargs, func=func)
@@ -194,9 +189,7 @@ def split_string_by_multi_markers(content: str, markers: list[str]) -> list[str]
     return [r.strip() for r in results if r.strip()]
 
 
-
 def clean_str(input: Any) -> str:
-
 
     if not isinstance(input, str):
         return input
@@ -352,11 +345,9 @@ async def get_best_cached_response(
     best_prompt = None
     best_cache_id = None
 
-
     for cache_id, cache_data in mode_cache.items():
         if cache_data["embedding"] is None:
             continue
-
 
         cached_quantized = np.frombuffer(
             bytes.fromhex(cache_data["embedding"]), dtype=np.uint8
@@ -375,7 +366,6 @@ async def get_best_cached_response(
             best_cache_id = cache_id
 
     if best_similarity > similarity_threshold:
-
         if use_llm_check and llm_func and original_prompt and best_prompt:
             compare_prompt = PROMPTS["similarity_check"].format(
                 original_prompt=original_prompt, cached_prompt=best_prompt
@@ -385,7 +375,6 @@ async def get_best_cached_response(
                 llm_result = await llm_func(compare_prompt)
                 llm_result = llm_result.strip()
                 llm_similarity = float(llm_result)
-
 
                 best_similarity = llm_similarity
                 if best_similarity < similarity_threshold:
@@ -402,9 +391,9 @@ async def get_best_cached_response(
                     }
                     logger.info(json.dumps(log_data, ensure_ascii=False))
                     return None
-            except Exception as e:   
+            except Exception as e:
                 logger.warning(f"LLM similarity check failed: {e}")
-                return None  
+                return None
 
         prompt_display = (
             best_prompt[:50] + "..." if len(best_prompt) > 50 else best_prompt
@@ -431,10 +420,8 @@ def cosine_similarity(v1, v2):
 
 def quantize_embedding(embedding: np.ndarray, bits=8) -> tuple:
 
-
     min_val = embedding.min()
     max_val = embedding.max()
-
 
     scale = (2**bits - 1) / (max_val - min_val)
     quantized = np.round((embedding - min_val) * scale).astype(np.uint8)
@@ -455,13 +442,11 @@ async def handle_cache(hashing_kv, args_hash, prompt, mode="default"):
     if hashing_kv is None:
         return None, None, None, None
 
-
     if mode == "naive":
         mode_cache = await hashing_kv.get_by_id(mode) or {}
         if args_hash in mode_cache:
             return mode_cache[args_hash]["return"], None, None, None
         return None, None, None, None
-
 
     embedding_cache_config = hashing_kv.global_config.get(
         "embedding_cache_config",
@@ -472,7 +457,6 @@ async def handle_cache(hashing_kv, args_hash, prompt, mode="default"):
 
     quantized = min_val = max_val = None
     if is_embedding_cache_enabled:
-
         embedding_model_func = hashing_kv.global_config["embedding_func"]["func"]
         llm_model_func = hashing_kv.global_config.get("llm_model_func")
 
@@ -490,7 +474,6 @@ async def handle_cache(hashing_kv, args_hash, prompt, mode="default"):
         if best_cached_response is not None:
             return best_cached_response, None, None, None
     else:
-
         mode_cache = await hashing_kv.get_by_id(mode) or {}
         if args_hash in mode_cache:
             return mode_cache[args_hash]["return"], None, None, None
@@ -533,6 +516,7 @@ async def save_to_cache(hashing_kv, cache_data: CacheData):
 
 def safe_unicode_decode(content):
     unicode_escape_pattern = re.compile(r"\\u([0-9a-fA-F]{4})")
+
     def replace_unicode_escape(match):
         return chr(int(match.group(1), 16))
 
