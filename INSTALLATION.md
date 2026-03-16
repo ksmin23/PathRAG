@@ -43,18 +43,31 @@ This guide provides detailed instructions for setting up the PathRAG application
    WORKING_DIR=./data                   # Directory for storing PathRAG data
    UPLOAD_DIR=./uploads                 # Directory for storing uploaded documents
 
-   # Azure OpenAI Settings (Required if using Azure OpenAI)
-   AZURE_OPENAI_API_VERSION=2023-05-15
-   AZURE_OPENAI_DEPLOYMENT=gpt-4o       # Your Azure OpenAI deployment name
-   AZURE_OPENAI_API_KEY=your_azure_key  # Your Azure OpenAI API key
-   AZURE_OPENAI_ENDPOINT=https://your-resource-name.openai.azure.com
+   # AI Model Settings (powered by LiteLLM – any provider supported)
+   # See https://docs.litellm.ai/docs/providers for model name format
+   LLM_MODEL_NAME=gpt-4o                            # e.g. gpt-4o, gemini/gemini-2.0-flash, anthropic/claude-sonnet-4-20250514
+   EMBEDDING_MODEL_NAME=text-embedding-3-small       # e.g. text-embedding-3-small, gemini/text-embedding-004
+   EMBEDDING_DIM=1536                                # Must match the chosen embedding model (e.g. 1536, 768, 1024)
 
-   AZURE_EMBEDDING_DEPLOYMENT=text-embedding-3-large  # Your Azure embedding model deployment
-   AZURE_EMBEDDING_API_VERSION=2023-05-15
+   # Provider API Keys (set the ones you need)
+   # OpenAI
+   OPENAI_API_KEY=your_openai_key
 
-   # OpenAI Settings (Required if using OpenAI directly instead of Azure)
-   OPENAI_API_KEY=your_openai_key       # Your OpenAI API key
-   OPENAI_API_BASE=https://api.openai.com/v1
+   # Azure OpenAI
+   # AZURE_API_KEY=your_azure_api_key
+   # AZURE_API_BASE=https://your-resource.openai.azure.com
+   # AZURE_API_VERSION=2023-05-15
+
+   # Google (Gemini)
+   # GEMINI_API_KEY=your_gemini_api_key
+
+   # Anthropic
+   # ANTHROPIC_API_KEY=your_anthropic_api_key
+
+   # AWS Bedrock (uses AWS credentials)
+   # AWS_ACCESS_KEY_ID=your_aws_access_key
+   # AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+   # AWS_REGION_NAME=us-east-1
 
    # PathRAG Settings (Optional - advanced configuration)
    CHUNK_SIZE=1200                      # Size of text chunks for processing
@@ -519,7 +532,10 @@ services:
       - DATABASE_URL=sqlite:///./pathrag.db
       - WORKING_DIR=/app/data
       - UPLOAD_DIR=/app/uploads
-      # Add other environment variables as needed
+      - LLM_MODEL_NAME=${LLM_MODEL_NAME:-gpt-4o}
+      - EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME:-text-embedding-3-small}
+      - EMBEDDING_DIM=${EMBEDDING_DIM:-1536}
+      # Add provider API keys as needed
     restart: unless-stopped
 
   frontend:
@@ -546,17 +562,20 @@ services:
     # ... other settings as above
     secrets:
       - jwt_secret
-      - openai_api_key
+      - llm_api_key
     environment:
       - SECRET_KEY_FILE=/run/secrets/jwt_secret
-      - OPENAI_API_KEY_FILE=/run/secrets/openai_api_key
-      # ... other environment variables
+      - LLM_MODEL_NAME=${LLM_MODEL_NAME:-gpt-4o}
+      - EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME:-text-embedding-3-small}
+      - EMBEDDING_DIM=${EMBEDDING_DIM:-1536}
+      # Set the appropriate API key env var for your provider
+      # e.g. OPENAI_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY
 
 secrets:
   jwt_secret:
     file: ./secrets/jwt_secret.txt
-  openai_api_key:
-    file: ./secrets/openai_api_key.txt
+  llm_api_key:
+    file: ./secrets/llm_api_key.txt
 ```
 
 Run with Docker Compose:
