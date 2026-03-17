@@ -34,6 +34,13 @@ def _get_llm_config():
     If LLM_MODEL_NAME, EMBEDDING_MODEL_NAME, or EMBEDDING_DIM are set in the
     environment (or .env file), those values take precedence.  Otherwise,
     sensible defaults are chosen based on which API key is available.
+
+    Returns:
+        (llm_model, embedding_model, embedding_dim, tiktoken_model)
+        tiktoken_model is derived from LLM_MODEL_NAME and passed to
+        tiktoken for token counting.  Falls back to cl100k_base encoding
+        when the model is not recognized by tiktoken (e.g. Gemini,
+        Bedrock, Ollama models).
     """
     # Choose defaults based on available API key
     if os.environ.get("GEMINI_API_KEY"):
@@ -45,15 +52,22 @@ def _get_llm_config():
         default_embed = "text-embedding-3-small"
         default_dim = 1536
     else:
-        return None, None, None
+        return None, None, None, None
 
     llm_model = os.environ.get("LLM_MODEL_NAME", default_llm)
     embedding_model = os.environ.get("EMBEDDING_MODEL_NAME", default_embed)
     embedding_dim = int(os.environ.get("EMBEDDING_DIM", default_dim))
 
+    # Use LLM_MODEL_NAME as the tiktoken model name.
+    # tiktoken recognises OpenAI model names (e.g. gpt-4o-mini) directly.
+    # For non-OpenAI models (e.g. gemini/gemini-2.5-flash),
+    # _get_tiktoken_encoder() falls back to cl100k_base automatically.
+    tiktoken_model = llm_model
+
     print(f"  LLM Model: {llm_model}")
     print(f"  Embedding Model: {embedding_model} (dim={embedding_dim})")
-    return llm_model, embedding_model, embedding_dim
+    print(f"  Tiktoken Model: {tiktoken_model}")
+    return llm_model, embedding_model, embedding_dim, tiktoken_model
 
 
 SAMPLE_DOCUMENTS = [
@@ -95,12 +109,16 @@ def test_step1_chunking():
     print("STEP 1: Chunking")
     print("=" * 70)
 
+    # Use LLM_MODEL_NAME for tiktoken token counting.
+    # Falls back to cl100k_base for non-OpenAI models (e.g. Gemini).
+    tiktoken_model = os.environ.get("LLM_MODEL_NAME", "gpt-4o")
+
     for i, doc in enumerate(SAMPLE_DOCUMENTS):
         chunks = chunking_by_token_size(
             doc.strip(),
             overlap_token_size=50,
             max_token_size=200,
-            tiktoken_model="gpt-4o",
+            tiktoken_model=tiktoken_model,
         )
         print(f"\n--- Document {i+1} ---")
         print(f"  Original length: {len(doc.strip())} chars")
@@ -320,7 +338,7 @@ async def test_step4_full_indexing():
     print("STEP 4: Full Indexing Pipeline")
     print("=" * 70)
 
-    llm_model, embedding_model, embedding_dim = _get_llm_config()
+    llm_model, embedding_model, embedding_dim, tiktoken_model = _get_llm_config()
     if llm_model is None:
         print("  [SKIP] No API key found (GEMINI_API_KEY or OPENAI_API_KEY).")
         print("  Set an API key to run this test.")
@@ -333,6 +351,7 @@ async def test_step4_full_indexing():
             llm_model_name=llm_model,
             embedding_model_name=embedding_model,
             embedding_dim=embedding_dim,
+            tiktoken_model_name=tiktoken_model,
             chunk_token_size=200,
             chunk_overlap_token_size=50,
         )
@@ -381,7 +400,7 @@ async def test_step5_full_query():
     print("STEP 5: Full Query Pipeline")
     print("=" * 70)
 
-    llm_model, embedding_model, embedding_dim = _get_llm_config()
+    llm_model, embedding_model, embedding_dim, tiktoken_model = _get_llm_config()
     if llm_model is None:
         print("  [SKIP] No API key found. Set an API key to run this test.")
         return
@@ -393,6 +412,7 @@ async def test_step5_full_query():
             llm_model_name=llm_model,
             embedding_model_name=embedding_model,
             embedding_dim=embedding_dim,
+            tiktoken_model_name=tiktoken_model,
             chunk_token_size=300,
             chunk_overlap_token_size=50,
         )
