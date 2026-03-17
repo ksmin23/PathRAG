@@ -143,7 +143,7 @@ class PathRAG:
     # Examples:
     #   OpenAI  : embedding_model_name="text-embedding-3-small",  embedding_dim=1536
     #   OpenAI  : embedding_model_name="text-embedding-3-large",  embedding_dim=3072
-    #   Gemini  : embedding_model_name="gemini/text-embedding-004", embedding_dim=768
+    #   Gemini  : embedding_model_name="gemini/gemini-embedding-001", embedding_dim=3072
     #   Bedrock : embedding_model_name="bedrock/amazon.titan-embed-text-v2:0", embedding_dim=1024
     #
     # If embedding_func is None (default), it is auto-created from the above settings.

@@ -753,7 +753,7 @@ entity_summary_to_max_tokens: int = 500 # Max tokens for entity descriptions
 # Uses LiteLLM, so any supported provider works.
 # Examples:
 #   OpenAI  : embedding_model_name="text-embedding-3-small",  embedding_dim=1536
-#   Gemini  : embedding_model_name="gemini/text-embedding-004", embedding_dim=768
+#   Gemini  : embedding_model_name="gemini/gemini-embedding-001", embedding_dim=3072
 #   Bedrock : embedding_model_name="bedrock/amazon.titan-embed-text-v2:0", embedding_dim=1024
 embedding_model_name: str = "text-embedding-3-small"  # LiteLLM model name
 embedding_dim: int = 1536                             # Must match the chosen model
@@ -881,7 +881,7 @@ class MinimalPathRAG:
 | **Path Parameters** | Adjust `threshold`, `alpha`, `max_hops` |
 | **Storage Backend** | Implement `BaseKVStorage`, `BaseVectorStorage`, `BaseGraphStorage` |
 | **LLM Provider** | Set `llm_model_name` to any LiteLLM-supported model (e.g. `gemini/gemini-2.0-flash`), or add a custom function in `llm.py` |
-| **Embedding Model** | Set `embedding_model_name` and `embedding_dim` (e.g. `gemini/text-embedding-004`, 768), or provide a custom `embedding_func` |
+| **Embedding Model** | Set `embedding_model_name` and `embedding_dim` (e.g. `gemini/gemini-embedding-001`, 3072), or provide a custom `embedding_func` |
 
 ### 9.4 Performance Considerations
 

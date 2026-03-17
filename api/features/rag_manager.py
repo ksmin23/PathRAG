@@ -20,7 +20,7 @@ if not os.path.exists(WORKING_DIR):
 # Embedding model examples (set EMBEDDING_MODEL_NAME and EMBEDDING_DIM together):
 #   OpenAI  : EMBEDDING_MODEL_NAME="text-embedding-3-small"               EMBEDDING_DIM=1536
 #   OpenAI  : EMBEDDING_MODEL_NAME="text-embedding-3-large"               EMBEDDING_DIM=3072
-#   Gemini  : EMBEDDING_MODEL_NAME="gemini/text-embedding-004"            EMBEDDING_DIM=768
+#   Gemini  : EMBEDDING_MODEL_NAME="gemini/gemini-embedding-001"           EMBEDDING_DIM=3072
 #   Bedrock : EMBEDDING_MODEL_NAME="bedrock/amazon.titan-embed-text-v2:0" EMBEDDING_DIM=1024
 LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "gpt-4o")
 EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "text-embedding-3-small")

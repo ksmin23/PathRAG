@@ -1455,7 +1455,7 @@ def create_litellm_embedding(
 
     Examples:
         OpenAI:  create_litellm_embedding("text-embedding-3-small", 1536)
-        Gemini:  create_litellm_embedding("gemini/text-embedding-004", 768)
+        Gemini:  create_litellm_embedding("gemini/gemini-embedding-001", 3072)
         Bedrock: create_litellm_embedding("bedrock/amazon.titan-embed-text-v2:0", 1024)
     """
     from .utils import EmbeddingFunc

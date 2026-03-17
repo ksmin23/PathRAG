@@ -195,10 +195,10 @@ rag = PathRAG(
     # Examples:
     #   OpenAI  : embedding_model_name="text-embedding-3-small",  embedding_dim=1536
     #   OpenAI  : embedding_model_name="text-embedding-3-large",  embedding_dim=3072
-    #   Gemini  : embedding_model_name="gemini/text-embedding-004", embedding_dim=768
+    #   Gemini  : embedding_model_name="gemini/gemini-embedding-001", embedding_dim=3072
     #   Bedrock : embedding_model_name="bedrock/amazon.titan-embed-text-v2:0", embedding_dim=1024
-    embedding_model_name="gemini/text-embedding-004",
-    embedding_dim=768,
+    embedding_model_name="gemini/gemini-embedding-001",
+    embedding_dim=3072,
 )
 
 data_file = "./text.txt"
@@ -425,8 +425,8 @@ If you prefer to set up and run the components separately, follow these instruct
    # AI Model Settings (powered by LiteLLM – any provider supported)
    # See https://docs.litellm.ai/docs/providers for model name format
    LLM_MODEL_NAME=gpt-4o                           # e.g. gpt-4o, gemini/gemini-2.0-flash, anthropic/claude-sonnet-4-20250514
-   EMBEDDING_MODEL_NAME=text-embedding-3-small      # e.g. text-embedding-3-small, gemini/text-embedding-004
-   EMBEDDING_DIM=1536                               # Must match the chosen embedding model (e.g. 1536, 768, 1024)
+   EMBEDDING_MODEL_NAME=text-embedding-3-small      # e.g. text-embedding-3-small, gemini/gemini-embedding-001
+   EMBEDDING_DIM=1536                               # Must match the chosen embedding model (e.g. 1536, 3072, 1024)
 
    # Provider API Keys (set the ones you need)
    OPENAI_API_KEY=your_openai_key                   # For OpenAI models
