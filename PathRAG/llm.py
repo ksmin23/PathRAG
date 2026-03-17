@@ -5,13 +5,12 @@ import os
 import re
 import struct
 from functools import lru_cache
-from typing import List, Dict, Callable, Any, Union, Optional
+from typing import TYPE_CHECKING, List, Dict, Callable, Any, Union, Optional
 import aioboto3
 import aiohttp
 import numpy as np
 import ollama
 import torch
-import time
 import modelscope as ms
 from vllm import LLM
 from openai import (
@@ -37,7 +36,11 @@ from .utils import (
     logger,
 )
 
+if TYPE_CHECKING:
+    from .utils import EmbeddingFunc
+
 import sys
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 if sys.version_info < (3, 9):
@@ -50,7 +53,6 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 class BedrockError(Exception):
     """Exception raised for AWS Bedrock API errors."""
-    pass
 
 
 @retry(
@@ -79,7 +81,6 @@ async def openai_complete_if_cache(
         messages.append({"role": "system", "content": system_prompt})
     messages.extend(history_messages)
     messages.append({"role": "user", "content": prompt})
-
 
     logger.debug("===== Query Input to LLM =====")
     logger.debug(f"Query: {prompt}")
@@ -156,10 +157,6 @@ async def azure_openai_complete_if_cache(
     return content
 
 
-class BedrockError(Exception):
-    """Generic error for issues related to Amazon Bedrock"""
-
-
 @retry(
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, max=60),
@@ -192,16 +189,12 @@ async def bedrock_complete_if_cache(
         message["content"] = [{"text": message["content"]}]
         messages.append(message)
 
-
     messages.append({"role": "user", "content": [{"text": prompt}]})
-
 
     args = {"modelId": model, "messages": messages}
 
-
     if system_prompt:
         args["system"] = [{"text": system_prompt}]
-
 
     inference_params_map = {
         "max_tokens": "maxTokens",
@@ -217,7 +210,6 @@ async def bedrock_complete_if_cache(
                 kwargs.pop(param)
             )
 
-
     session = aioboto3.Session()
     async with session.client("bedrock-runtime") as bedrock_async_client:
         try:
@@ -230,28 +222,28 @@ async def bedrock_complete_if_cache(
 
 @lru_cache(maxsize=1)
 def initialize_hf_model(model_name):
-    # 是否使用 GPU，如果无 GPU 则回退到 CPU
+    # Use GPU if available, otherwise fall back to CPU
     use_gpu = torch.cuda.is_available()
     dtype = torch.bfloat16 if use_gpu else torch.float32
     device_map = "auto" if use_gpu else "cpu"
 
-    # 加载 tokenizer
+    # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(
         model_name,
         trust_remote_code=True,
-        use_fast=False  # 有些模型如 Qwen 不支持 fast tokenizer
+        use_fast=False,  # Some models (e.g. Qwen) do not support fast tokenizer
     )
 
-    # 加载模型
+    # Load model
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         trust_remote_code=True,
         torch_dtype=dtype,
         device_map=device_map,
-        low_cpu_mem_usage=True
+        low_cpu_mem_usage=True,
     )
 
-    # 设置 pad_token
+    # Set pad_token
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -313,11 +305,9 @@ async def hf_model_if_cache(
 
     input_ids = hf_tokenizer(
         input_prompt, return_tensors="pt", padding=True, truncation=True
-    )#修改.to("cuda")
+    )  # moved .to("cuda") to device-aware mapping below
     inputs = {k: v.to(hf_model.device) for k, v in input_ids.items()}
-    output = hf_model.generate(
-        **input_ids, max_new_tokens=512, num_return_sequences=1
-    )
+    output = hf_model.generate(**input_ids, max_new_tokens=512, num_return_sequences=1)
     response_text = hf_tokenizer.decode(
         output[0][len(inputs["input_ids"][0]) :], skip_special_tokens=True
     )
@@ -542,7 +532,7 @@ async def nvidia_openai_complete(
 ) -> str:
     keyword_extraction = kwargs.pop("keyword_extraction", None)
     result = await openai_complete_if_cache(
-        "nvidia/llama-3.1-nemotron-70b-instruct",  
+        "nvidia/llama-3.1-nemotron-70b-instruct",
         prompt,
         system_prompt=system_prompt,
         history_messages=history_messages,
@@ -626,7 +616,7 @@ async def ollama_model_complete(
 )
 async def zhipu_complete_if_cache(
     prompt: Union[str, List[Dict[str, str]]],
-    model: str = "glm-4-flashx",  
+    model: str = "glm-4-flashx",
     api_key: Optional[str] = None,
     system_prompt: Optional[str] = None,
     history_messages: List[Dict[str, str]] = [],
@@ -646,19 +636,16 @@ async def zhipu_complete_if_cache(
     messages = []
 
     if not system_prompt:
-        system_prompt = "You are a helpful assistant. 注意内容里的敏感词用***替换。"
-
+        system_prompt = "You are a helpful assistant."
 
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.extend(history_messages)
     messages.append({"role": "user", "content": prompt})
 
-
     logger.debug("===== Query Input to LLM =====")
     logger.debug(f"Query: {prompt}")
     logger.debug(f"System prompt: {system_prompt}")
-
 
     kwargs = {
         k: v for k, v in kwargs.items() if k not in ["hashing_kv", "keyword_extraction"]
@@ -689,7 +676,6 @@ async def zhipu_complete(
 
         Only return the JSON, no other text."""
 
-
         if system_prompt:
             system_prompt = f"{system_prompt}\n\n{extraction_prompt}"
         else:
@@ -703,7 +689,6 @@ async def zhipu_complete(
                 **kwargs,
             )
 
-
             try:
                 data = json.loads(response)
                 return GPTKeywordExtractionFormat(
@@ -711,7 +696,6 @@ async def zhipu_complete(
                     low_level_keywords=data.get("low_level_keywords", []),
                 )
             except json.JSONDecodeError:
-
                 match = re.search(r"\{[\s\S]*\}", response)
                 if match:
                     try:
@@ -722,7 +706,6 @@ async def zhipu_complete(
                         )
                     except json.JSONDecodeError:
                         pass
-
 
                 logger.warning(
                     f"Failed to parse keyword extraction response: {response}"
@@ -846,9 +829,9 @@ async def nvidia_openai_embedding(
     model: str = "nvidia/llama-3.2-nv-embedqa-1b-v1",
     base_url: str = "https://integrate.api.nvidia.com/v1",
     api_key: str = None,
-    input_type: str = "passage",  
-    trunc: str = "NONE",  
-    encode: str = "float",  
+    input_type: str = "passage",
+    trunc: str = "NONE",
+    encode: str = "float",
 ) -> np.ndarray:
     if api_key:
         os.environ["OPENAI_API_KEY"] = api_key
@@ -935,7 +918,6 @@ async def siliconcloud_embedding(
     return np.array(embeddings)
 
 
-
 async def bedrock_embedding(
     texts: list[str],
     model: str = "amazon.titan-embed-text-v2:0",
@@ -962,7 +944,6 @@ async def bedrock_embedding(
                     body = json.dumps(
                         {
                             "inputText": text,
-                            
                             "embeddingTypes": ["float"],
                         }
                     )
@@ -1015,6 +996,7 @@ async def hf_embedding(texts: list[str], tokenizer, embed_model) -> np.ndarray:
     else:
         return embeddings.detach().cpu().numpy()
 
+
 async def ms_embedding(texts: list[str], tokenizer, embed_model) -> np.ndarray:
     device = next(embed_model.parameters()).device
     input_ids = tokenizer(
@@ -1028,15 +1010,15 @@ async def ms_embedding(texts: list[str], tokenizer, embed_model) -> np.ndarray:
     else:
         return embeddings.detach().cpu().numpy()
 
-async def local_embedding(texts: list[str], tokenizer=None, embed_model=None) -> np.ndarray:
+
+async def local_embedding(
+    texts: list[str], tokenizer=None, embed_model=None
+) -> np.ndarray:
     if tokenizer is None or embed_model is None:
         raise ValueError("Tokenizer and model must be provided")
     device = next(embed_model.parameters()).device
     encoded = tokenizer(
-        texts,
-        padding=True,
-        truncation=True,
-        return_tensors="pt"
+        texts, padding=True, truncation=True, return_tensors="pt"
     ).input_ids.to(device)
     with torch.no_grad():
         outputs = embed_model(encoded)
@@ -1066,18 +1048,22 @@ async def ollama_embed(texts: list[str], embed_model, **kwargs) -> np.ndarray:
     return data["embeddings"]
 
 
-
 @lru_cache(maxsize=1)
 def initialize_ms_model(model_name: str):
-    """加载 ModelScope 聊天模型并缓存（底层实现）"""
+    """Load and cache a ModelScope chat model."""
     tokenizer = ms.AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    model = ms.AutoModelForCausalLM.from_pretrained(
-        model_name,
-        torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-        trust_remote_code=True,
-        low_cpu_mem_usage=True
-    ).to(device).eval()
+    model = (
+        ms.AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+            trust_remote_code=True,
+            low_cpu_mem_usage=True,
+        )
+        .to(device)
+        .eval()
+    )
     return tokenizer, model
+
 
 @retry(
     stop=stop_after_attempt(3),
@@ -1135,15 +1121,11 @@ async def ms_model_if_cache(
         input_prompt, return_tensors="pt", padding=True, truncation=True
     ).to(device)
     inputs = {k: v.to(model.device) for k, v in input_ids.items()}
-    output = model.generate(
-        **input_ids, max_new_tokens=512, num_return_sequences=1
-    )
+    output = model.generate(**input_ids, max_new_tokens=512, num_return_sequences=1)
     response_text = tokenizer.decode(
         output[0][len(inputs["input_ids"][0]) :], skip_special_tokens=True
     )
     return response_text
-
-
 
 
 async def ms_model_complete(
@@ -1162,22 +1144,24 @@ async def ms_model_complete(
         history_messages=history_messages,
         **kwargs,
     )
-    # print("ms_res",result)
     if keyword_extraction:
         return locate_json_string_body_from_string(result)
-    
-    return result
 
+    return result
 
 
 @lru_cache(maxsize=1)
 def initialize_local_model(model_path: str):
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_path,
-        trust_remote_code=True,
-        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-    ).to(device).eval()
+    model = (
+        AutoModelForCausalLM.from_pretrained(
+            model_path,
+            trust_remote_code=True,
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+        )
+        .to(device)
+        .eval()
+    )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -1246,8 +1230,8 @@ async def local_model_if_cache(
     response_text = local_tokenizer.decode(
         output[0][len(inputs["input_ids"][0]) :], skip_special_tokens=True
     )
-    # print("response_text",response_text)#修改
     return response_text
+
 
 async def local_model_complete(
     prompt: str,
@@ -1266,14 +1250,14 @@ async def local_model_complete(
         **kwargs,
     )
     if keyword_extraction:
-        result= locate_json_string_body_from_string(result)
+        result = locate_json_string_body_from_string(result)
     return result
 
 
 @lru_cache(maxsize=1)
 def initialize_vllm_model(model_name: str):
-    """加载 vLLM 聊天模型并缓存"""
-    model = LLM(model_name, device=device, max_model_len=8192)#修改
+    """Load and cache a vLLM chat model."""
+    model = LLM(model_name, device=device, max_model_len=8192)
     return model
 
 
@@ -1291,14 +1275,13 @@ async def vllm_model_if_cache(
 ) -> str:
     vllm_model = initialize_vllm_model(model)
 
-    # 构建多轮对话格式
+    # Build multi-turn conversation messages
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.extend(history_messages)
     messages.append({"role": "user", "content": prompt})
     kwargs.pop("hashing_kv", None)
-    input_prompt = ""
     try:
         result = vllm_model.chat(messages)
     except Exception:
@@ -1327,7 +1310,6 @@ async def vllm_model_if_cache(
                     + ">\n"
                 )
     return result[0].outputs[0].text
-
 
 
 async def vllm_model_complete(
@@ -1365,12 +1347,135 @@ async def vllm_embedding(texts: list[str], tokenizer, embed_model) -> np.ndarray
         return embeddings.detach().cpu().numpy()
 
 
+# ---------------------------------------------------------------------------
+# LiteLLM unified interface – works with any provider supported by LiteLLM
+# Model name examples:
+#   OpenAI      : "gpt-4o", "gpt-4o-mini"
+#   Azure       : "azure/<deployment>"
+#   Anthropic   : "anthropic/claude-3-opus-20240229"
+#   Google      : "gemini/gemini-pro"
+#   Bedrock     : "bedrock/anthropic.claude-3-haiku-20240307-v1:0"
+#   Ollama      : "ollama/llama3"
+#   Together    : "together_ai/meta-llama/Llama-3-70b-chat-hf"
+#   And many more – see https://docs.litellm.ai/docs/providers
+# ---------------------------------------------------------------------------
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type((Exception,)),
+)
+async def litellm_complete_if_cache(
+    model,
+    prompt,
+    system_prompt=None,
+    history_messages=[],
+    **kwargs,
+) -> str:
+    import litellm
+
+    kwargs.pop("hashing_kv", None)
+    kwargs.pop("keyword_extraction", None)
+
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.extend(history_messages)
+    messages.append({"role": "user", "content": prompt})
+
+    logger.debug("===== Query Input to LLM (litellm) =====")
+    logger.debug(f"Model: {model}")
+    logger.debug(f"Query: {prompt}")
+    logger.debug(f"System prompt: {system_prompt}")
+
+    # Remove unsupported kwargs for litellm
+    kwargs.pop("response_format", None)
+
+    response = await litellm.acompletion(model=model, messages=messages, **kwargs)
+
+    if hasattr(response, "__aiter__"):
+
+        async def inner():
+            async for chunk in response:
+                content = chunk.choices[0].delta.content
+                if content is None:
+                    continue
+                if r"\u" in content:
+                    content = safe_unicode_decode(content.encode("utf-8"))
+                yield content
+
+        return inner()
+    else:
+        content = response.choices[0].message.content
+        if r"\u" in content:
+            content = safe_unicode_decode(content.encode("utf-8"))
+        return content
 
 
+async def litellm_complete(
+    prompt, system_prompt=None, history_messages=[], keyword_extraction=False, **kwargs
+) -> Union[str, AsyncIterator[str]]:
+    keyword_extraction = kwargs.pop("keyword_extraction", None)
+    if keyword_extraction:
+        kwargs["response_format"] = "json"
+    model_name = kwargs["hashing_kv"].global_config["llm_model_name"]
+    return await litellm_complete_if_cache(
+        model_name,
+        prompt,
+        system_prompt=system_prompt,
+        history_messages=history_messages,
+        **kwargs,
+    )
 
 
+@wrap_embedding_func_with_attrs(embedding_dim=1536, max_token_size=8192)
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=60),
+    retry=retry_if_exception_type((Exception,)),
+)
+async def litellm_embedding(
+    texts: list[str],
+    model: str = "text-embedding-3-small",
+    **kwargs,
+) -> np.ndarray:
+    import litellm
+
+    response = await litellm.aembedding(model=model, input=texts, **kwargs)
+    return np.array([dp["embedding"] for dp in response.data])
+
+
+def create_litellm_embedding(
+    model: str = "text-embedding-3-small",
+    embedding_dim: int = 1536,
+    max_token_size: int = 8192,
+) -> "EmbeddingFunc":
+    """Create an EmbeddingFunc for any LiteLLM-supported embedding model.
+
+    Examples:
+        OpenAI:  create_litellm_embedding("text-embedding-3-small", 1536)
+        Gemini:  create_litellm_embedding("gemini/gemini-embedding-001", 3072)
+        Bedrock: create_litellm_embedding("bedrock/amazon.titan-embed-text-v2:0", 1024)
+    """
+    from .utils import EmbeddingFunc
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        retry=retry_if_exception_type((Exception,)),
+    )
+    async def _embed(texts: list[str], **kwargs) -> np.ndarray:
+        import litellm
+
+        response = await litellm.aembedding(model=model, input=texts, **kwargs)
+        return np.array([dp["embedding"] for dp in response.data])
+
+    return EmbeddingFunc(
+        embedding_dim=embedding_dim,
+        max_token_size=max_token_size,
+        func=_embed,
+    )
 
 
 class Model(BaseModel):
@@ -1439,7 +1544,7 @@ class MultiModel:
     async def llm_model_func(
         self, prompt, system_prompt=None, history_messages=[], **kwargs
     ) -> str:
-        kwargs.pop("model", None)   
+        kwargs.pop("model", None)
         kwargs.pop("keyword_extraction", None)
         kwargs.pop("mode", None)
         next_model = self._next_model()
@@ -1458,6 +1563,6 @@ if __name__ == "__main__":
     import asyncio
 
     async def main():
-        result = await gpt_4o_mini_complete("How are you?")
+        await gpt_4o_mini_complete("How are you?")
 
     asyncio.run(main())

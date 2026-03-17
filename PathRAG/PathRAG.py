@@ -8,8 +8,8 @@ from typing import Type, cast
 
 
 from .llm import (
-    openai_complete,
-    openai_embedding,
+    litellm_complete,
+    create_litellm_embedding,
 )
 from .operate import (
     chunking_by_token_size,
@@ -23,7 +23,6 @@ from .utils import (
     limit_async_func_call,
     convert_response_to_json,
     logger,
-    set_logger,
 )
 from .base import (
     BaseGraphStorage,
@@ -40,11 +39,8 @@ from .storage import (
 )
 
 
-
-
 def lazy_external_import(module_name: str, class_name: str):
     """Lazily import a class from an external module based on the package of the caller."""
-
 
     import inspect
 
@@ -55,9 +51,7 @@ def lazy_external_import(module_name: str, class_name: str):
     def import_class(*args, **kwargs):
         import importlib
 
-  
         module = importlib.import_module(module_name, package=package)
-
 
         cls = getattr(module, class_name)
         return cls(*args, **kwargs)
@@ -88,14 +82,12 @@ def always_get_an_event_loop() -> asyncio.AbstractEventLoop:
         asyncio.AbstractEventLoop: The current or newly created event loop.
     """
     try:
-
         current_loop = asyncio.get_event_loop()
         if current_loop.is_closed():
             raise RuntimeError("Event loop is closed.")
         return current_loop
 
     except RuntimeError:
-
         logger.info("Creating a new event loop in main thread.")
         new_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(new_loop)
@@ -105,7 +97,9 @@ def always_get_an_event_loop() -> asyncio.AbstractEventLoop:
 @dataclass
 class PathRAG:
     working_dir: str = field(
-        default_factory=lambda: f"./PathRAG_cache_{datetime.now().strftime('%Y-%m-%d-%H:%M:%S')}"
+        default_factory=lambda: (
+            f"./PathRAG_cache_{datetime.now().strftime('%Y-%m-%d-%H:%M:%S')}"
+        )
     )
 
     embedding_cache_config: dict = field(
@@ -122,15 +116,12 @@ class PathRAG:
     current_log_level = logger.level
     log_level: str = field(default=current_log_level)
 
-
     chunk_token_size: int = 1200
     chunk_overlap_token_size: int = 100
     tiktoken_model_name: str = "gpt-4o-mini"
 
-
     entity_extract_max_gleaning: int = 1
     entity_summary_to_max_tokens: int = 500
-
 
     node_embedding_algorithm: str = "node2vec"
     node2vec_params: dict = field(
@@ -144,34 +135,41 @@ class PathRAG:
         }
     )
 
-
-    embedding_func: EmbeddingFunc = field(default_factory=lambda: openai_embedding)
+    # Embedding model configuration.
+    # Uses LiteLLM under the hood, so any LiteLLM-supported provider works.
+    # Set embedding_model_name and embedding_dim to match the chosen model.
+    #
+    # Examples:
+    #   OpenAI  : embedding_model_name="text-embedding-3-small",  embedding_dim=1536
+    #   OpenAI  : embedding_model_name="text-embedding-3-large",  embedding_dim=3072
+    #   Gemini  : embedding_model_name="gemini/gemini-embedding-001", embedding_dim=3072
+    #   Bedrock : embedding_model_name="bedrock/amazon.titan-embed-text-v2:0", embedding_dim=1024
+    #
+    # If embedding_func is None (default), it is auto-created from the above settings.
+    # You can also pass a custom EmbeddingFunc to override this behavior entirely.
+    embedding_model_name: str = "text-embedding-3-small"
+    embedding_dim: int = 1536
+    embedding_func: EmbeddingFunc = None
     embedding_batch_num: int = 32
     embedding_func_max_async: int = 16
 
-
-    llm_model_func: callable = openai_complete  
-    llm_model_name: str = "gpt-4o"  
+    llm_model_func: callable = litellm_complete
+    llm_model_name: str = "gpt-4o"
     llm_model_max_token_size: int = 32768
     llm_model_max_async: int = 16
     llm_model_kwargs: dict = field(default_factory=dict)
-
 
     vector_db_storage_cls_kwargs: dict = field(default_factory=dict)
 
     enable_llm_cache: bool = True
 
-
     addon_params: dict = field(default_factory=dict)
     convert_response_to_json_func: callable = convert_response_to_json
 
     def __post_init__(self):
-        log_file = os.path.join("PathRAG.log")
-        set_logger(log_file)
         logger.setLevel(self.log_level)
 
         logger.info(f"Logger initialized for working directory: {self.working_dir}")
-
 
         self.key_string_value_json_storage_cls: Type[BaseKVStorage] = (
             self._get_storage_class()[self.kv_storage]
@@ -182,6 +180,12 @@ class PathRAG:
         self.graph_storage_cls: Type[BaseGraphStorage] = self._get_storage_class()[
             self.graph_storage
         ]
+
+        if self.embedding_func is None:
+            self.embedding_func = create_litellm_embedding(
+                model=self.embedding_model_name,
+                embedding_dim=self.embedding_dim,
+            )
 
         if not os.path.exists(self.working_dir):
             logger.info(f"Creating working directory {self.working_dir}")
@@ -200,7 +204,6 @@ class PathRAG:
             self.embedding_func
         )
 
-
         self.full_docs = self.key_string_value_json_storage_cls(
             namespace="full_docs",
             global_config=asdict(self),
@@ -216,7 +219,6 @@ class PathRAG:
             global_config=asdict(self),
             embedding_func=self.embedding_func,
         )
-
 
         self.entities_vdb = self.vector_db_storage_cls(
             namespace="entities",
@@ -251,27 +253,22 @@ class PathRAG:
 
     def _get_storage_class(self) -> Type[BaseGraphStorage]:
         return {
-
             "JsonKVStorage": JsonKVStorage,
             "OracleKVStorage": OracleKVStorage,
             "MongoKVStorage": MongoKVStorage,
             "TiDBKVStorage": TiDBKVStorage,
-
             "NanoVectorDBStorage": NanoVectorDBStorage,
             "OracleVectorDBStorage": OracleVectorDBStorage,
             "MilvusVectorDBStorge": MilvusVectorDBStorge,
             "ChromaVectorDBStorage": ChromaVectorDBStorage,
             "TiDBVectorDBStorage": TiDBVectorDBStorage,
-
             "NetworkXStorage": NetworkXStorage,
             "Neo4JStorage": Neo4JStorage,
             "OracleGraphStorage": OracleGraphStorage,
             "AGEStorage": AGEStorage,
-
         }
 
     async def insert(self, string_or_strings):
-        
         loop = always_get_an_event_loop()
         return await loop.run_until_complete(await self.ainsert(string_or_strings))
 
@@ -365,7 +362,6 @@ class PathRAG:
     async def ainsert_custom_kg(self, custom_kg: dict):
         update_storage = False
         try:
-
             all_chunks_data = {}
             chunk_to_source_map = {}
             for chunk_data in custom_kg.get("chunks", []):
@@ -383,7 +379,6 @@ class PathRAG:
             if self.text_chunks is not None and all_chunks_data:
                 await self.text_chunks.upsert(all_chunks_data)
 
- 
             all_entities_data = []
             for entity_data in custom_kg.get("entities", []):
                 entity_name = f'"{entity_data["entity_name"].upper()}"'
@@ -393,12 +388,10 @@ class PathRAG:
                 source_chunk_id = entity_data.get("source_id", "UNKNOWN")
                 source_id = chunk_to_source_map.get(source_chunk_id, "UNKNOWN")
 
-
                 if source_id == "UNKNOWN":
                     logger.warning(
                         f"Entity '{entity_name}' has an UNKNOWN source_id. Please check the source mapping."
                     )
-
 
                 node_data = {
                     "entity_type": entity_type,
@@ -413,7 +406,6 @@ class PathRAG:
                 all_entities_data.append(node_data)
                 update_storage = True
 
-
             all_relationships_data = []
             for relationship_data in custom_kg.get("relationships", []):
                 src_id = f'"{relationship_data["src_id"].upper()}"'
@@ -425,12 +417,10 @@ class PathRAG:
                 source_chunk_id = relationship_data.get("source_id", "UNKNOWN")
                 source_id = chunk_to_source_map.get(source_chunk_id, "UNKNOWN")
 
-
                 if source_id == "UNKNOWN":
                     logger.warning(
                         f"Relationship from '{src_id}' to '{tgt_id}' has an UNKNOWN source_id. Please check the source mapping."
                     )
-
 
                 for need_insert_id in [src_id, tgt_id]:
                     if not (
@@ -444,7 +434,6 @@ class PathRAG:
                                 "entity_type": "UNKNOWN",
                             },
                         )
-
 
                 await self.chunk_entity_relation_graph.upsert_edge(
                     src_id,
@@ -465,7 +454,6 @@ class PathRAG:
                 all_relationships_data.append(edge_data)
                 update_storage = True
 
-
             if self.entities_vdb is not None:
                 data_for_vdb = {
                     compute_mdhash_id(dp["entity_name"], prefix="ent-"): {
@@ -475,7 +463,6 @@ class PathRAG:
                     for dp in all_entities_data
                 }
                 await self.entities_vdb.upsert(data_for_vdb)
-
 
             if self.relationships_vdb is not None:
                 data_for_vdb = {
@@ -493,14 +480,14 @@ class PathRAG:
         finally:
             if update_storage:
                 await self._insert_done()
-    
+
     async def query(self, query: str, param: QueryParam = QueryParam()):
         loop = always_get_an_event_loop()
         return await loop.run_until_complete(await self.aquery(query, param))
-    
+
     async def aquery(self, query: str, param: QueryParam = QueryParam()):
         if param.mode in ["hybrid"]:
-            response= await kg_query(
+            response = await kg_query(
                 query,
                 self.chunk_entity_relation_graph,
                 self.entities_vdb,
@@ -521,7 +508,6 @@ class PathRAG:
         await self._query_done()
         return response
 
-        
     async def _query_done(self):
         tasks = []
         for storage_inst in [self.llm_response_cache]:
