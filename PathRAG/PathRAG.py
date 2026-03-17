@@ -23,7 +23,6 @@ from .utils import (
     limit_async_func_call,
     convert_response_to_json,
     logger,
-    set_logger,
 )
 from .base import (
     BaseGraphStorage,
@@ -168,8 +167,6 @@ class PathRAG:
     convert_response_to_json_func: callable = convert_response_to_json
 
     def __post_init__(self):
-        log_file = os.path.join("PathRAG.log")
-        set_logger(log_file)
         logger.setLevel(self.log_level)
 
         logger.info(f"Logger initialized for working directory: {self.working_dir}")
