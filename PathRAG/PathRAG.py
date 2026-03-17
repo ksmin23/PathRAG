@@ -69,6 +69,9 @@ ChromaVectorDBStorage = lazy_external_import(".kg.chroma_impl", "ChromaVectorDBS
 TiDBKVStorage = lazy_external_import(".kg.tidb_impl", "TiDBKVStorage")
 TiDBVectorDBStorage = lazy_external_import(".kg.tidb_impl", "TiDBVectorDBStorage")
 AGEStorage = lazy_external_import(".kg.age_impl", "AGEStorage")
+SpannerGraphStorage = lazy_external_import(
+    ".spanner_graph_storage", "SpannerGraphStorage"
+)
 
 
 def always_get_an_event_loop() -> asyncio.AbstractEventLoop:
@@ -266,6 +269,7 @@ class PathRAG:
             "Neo4JStorage": Neo4JStorage,
             "OracleGraphStorage": OracleGraphStorage,
             "AGEStorage": AGEStorage,
+            "SpannerGraphStorage": SpannerGraphStorage,
         }
 
     async def insert(self, string_or_strings):
