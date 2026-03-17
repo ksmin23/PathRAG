@@ -92,6 +92,7 @@ Create a `.env` file in your project root (or `examples/` directory):
 
 ```bash
 # .env
+GOOGLE_CLOUD_PROJECT=your-gcp-project-id
 SPANNER_INSTANCE=pathrag-instance
 SPANNER_DATABASE=pathrag-database
 
@@ -119,6 +120,7 @@ rag = PathRAG(
     embedding_dim=3072,
     graph_storage="SpannerGraphStorage",
     addon_params={
+        "spanner_project_id": "your-gcp-project-id",
         "spanner_instance_id": "pathrag-instance",
         "spanner_database_id": "pathrag-database",
     },
@@ -143,6 +145,7 @@ from PathRAG.spanner_graph_storage import SpannerGraphStorage
 graph = SpannerGraphStorage(
     namespace="my_graph",
     global_config={
+        "spanner_project_id": "your-gcp-project-id",
         "spanner_instance_id": "pathrag-instance",
         "spanner_database_id": "pathrag-database",
     },
@@ -171,10 +174,18 @@ degree = await graph.node_degree("APPLE")
 ### Run Test Suite
 
 ```bash
+export GOOGLE_CLOUD_PROJECT=your-gcp-project-id
 export SPANNER_INSTANCE=pathrag-instance
 export SPANNER_DATABASE=pathrag-database
 
+# Run tests only (no cleanup)
 python examples/spanner/test_spanner_graph_storage.py
+
+# Run tests then cleanup test tables
+python examples/spanner/test_spanner_graph_storage.py --cleanup
+
+# Cleanup only (skip tests)
+python examples/spanner/test_spanner_graph_storage.py --cleanup-only
 ```
 
 ## 7. Schema Overview
@@ -209,7 +220,7 @@ CREATE OR REPLACE PROPERTY GRAPH pathrag_{namespace}
     {namespace}_nodes
       KEY(id)
       LABEL Entity
-        PROPERTIES(entity_type, description, source_id)
+        PROPERTIES(id, entity_type, description, source_id)
   )
   EDGE TABLES (
     {namespace}_edges

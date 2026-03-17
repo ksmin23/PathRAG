@@ -10,10 +10,11 @@ Requirements::
 
 Configuration (via ``global_config`` dict or environment variables):
 
-    SPANNER_INSTANCE   – Spanner instance ID
-    SPANNER_DATABASE   – Spanner database ID
-    SPANNER_GRAPH_NAME – (optional) property-graph name,
-                         defaults to ``pathrag_{namespace}``
+    GOOGLE_CLOUD_PROJECT – GCP project ID (or ``spanner_project_id`` in config)
+    SPANNER_INSTANCE     – Spanner instance ID
+    SPANNER_DATABASE     – Spanner database ID
+    SPANNER_GRAPH_NAME   – (optional) property-graph name,
+                           defaults to ``pathrag_{namespace}``
 
 Example::
 
@@ -23,6 +24,7 @@ Example::
         working_dir="./data",
         graph_storage="SpannerGraphStorage",
         addon_params={
+            "spanner_project_id": "my-project",
             "spanner_instance_id": "my-instance",
             "spanner_database_id": "my-database",
         },
@@ -32,6 +34,9 @@ Example::
 import os
 from dataclasses import dataclass
 from typing import Union
+
+# Disable Spanner built-in metrics export to avoid noisy telemetry errors.
+os.environ.setdefault("SPANNER_DISABLE_BUILTIN_METRICS", "true")
 
 from google.cloud import spanner
 from google.cloud.spanner_v1 import param_types
@@ -62,6 +67,9 @@ class SpannerGraphStorage(BaseGraphStorage):
     def __post_init__(self):
         cfg = self.global_config
 
+        self._project_id = (
+            cfg.get("spanner_project_id") or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        )
         self._instance_id = (
             cfg.get("spanner_instance_id") or os.environ["SPANNER_INSTANCE"]
         )
@@ -75,7 +83,10 @@ class SpannerGraphStorage(BaseGraphStorage):
         self._node_table = f"{self.namespace}_nodes"
         self._edge_table = f"{self.namespace}_edges"
 
-        self._client = spanner.Client()
+        self._client = spanner.Client(
+            project=self._project_id,
+            disable_builtin_metrics=True,
+        )
         self._instance = self._client.instance(self._instance_id)
         self._database = self._instance.database(self._database_id)
 
@@ -139,7 +150,7 @@ class SpannerGraphStorage(BaseGraphStorage):
             f"    {self._node_table}"
             f"      KEY(id)"
             f"      LABEL Entity"
-            f"        PROPERTIES(entity_type, description, source_id)"
+            f"        PROPERTIES(id, entity_type, description, source_id)"
             f"  )"
             f"  EDGE TABLES ("
             f"    {self._edge_table}"
@@ -255,7 +266,7 @@ class SpannerGraphStorage(BaseGraphStorage):
         rows = self._gql(
             f"GRAPH {self._graph_name} "
             f"MATCH (s:Entity {{id: @src}})-[r:Relationship]->(d:Entity {{id: @tgt}}) "
-            f"RETURN 1",
+            f"RETURN 1 AS result",
             params={"src": source_node_id, "tgt": target_node_id},
             ptypes={"src": param_types.STRING, "tgt": param_types.STRING},
         )

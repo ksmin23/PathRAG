@@ -12,9 +12,12 @@ Prerequisites:
   - pip install google-cloud-spanner
 
 Usage:
-  python examples/spanner/test_spanner_graph_storage.py
+  python examples/spanner/test_spanner_graph_storage.py            # run tests (no cleanup)
+  python examples/spanner/test_spanner_graph_storage.py --cleanup  # run tests then cleanup
+  python examples/spanner/test_spanner_graph_storage.py --cleanup-only  # cleanup only
 """
 
+import argparse
 import asyncio
 import json
 import os
@@ -442,23 +445,39 @@ def _get_llm_config():
 # Main entry point
 # ===================================================================
 async def main():
+    parser = argparse.ArgumentParser(description="SpannerGraphStorage Test Suite")
+    parser.add_argument(
+        "--cleanup",
+        action="store_true",
+        help="Run cleanup after tests to drop test tables and graph",
+    )
+    parser.add_argument(
+        "--cleanup-only",
+        action="store_true",
+        help="Only run cleanup (skip all tests)",
+    )
+    args = parser.parse_args()
+
     print()
     print("*" * 70)
     print("  SpannerGraphStorage Test Suite")
     print("*" * 70)
     print()
 
-    # CRUD tests (Spanner required, no LLM)
-    await test_step1_node_crud()
-    await test_step2_edge_crud()
-    await test_step3_graph_traversal()
-    await test_step4_node_deletion()
+    if args.cleanup_only:
+        await test_step6_cleanup()
+    else:
+        # CRUD tests (Spanner required, no LLM)
+        await test_step1_node_crud()
+        await test_step2_edge_crud()
+        await test_step3_graph_traversal()
+        await test_step4_node_deletion()
 
-    # Full PathRAG integration (Spanner + LLM required)
-    await test_step5_pathrag_integration()
+        # Full PathRAG integration (Spanner + LLM required)
+        await test_step5_pathrag_integration()
 
-    # Cleanup test tables
-    await test_step6_cleanup()
+        if args.cleanup:
+            await test_step6_cleanup()
 
     print("*" * 70)
     print("  All SpannerGraphStorage tests completed!")
