@@ -174,7 +174,7 @@ degree = await graph.node_degree("APPLE")
 export SPANNER_INSTANCE=pathrag-instance
 export SPANNER_DATABASE=pathrag-database
 
-python examples/test_spanner_graph_storage.py
+python examples/spanner/test_spanner_graph_storage.py
 ```
 
 ## 7. Schema Overview

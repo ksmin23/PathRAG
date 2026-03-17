@@ -5,14 +5,14 @@ Tests CRUD operations and GQL graph traversal on SpannerGraphStorage.
 
 Prerequisites:
   - Set GCP credentials (GOOGLE_APPLICATION_CREDENTIALS or gcloud auth)
-  - Set Spanner config in examples/.env or as environment variables:
+  - Set Spanner config in examples/spanner/.env or as environment variables:
       SPANNER_INSTANCE=<instance-id>
       SPANNER_DATABASE=<database-id>
   - pip install -e .
   - pip install google-cloud-spanner
 
 Usage:
-  python examples/test_spanner_graph_storage.py
+  python examples/spanner/test_spanner_graph_storage.py
 """
 
 import asyncio
