@@ -72,6 +72,9 @@ AGEStorage = lazy_external_import(".kg.age_impl", "AGEStorage")
 SpannerGraphStorage = lazy_external_import(
     ".spanner_graph_storage", "SpannerGraphStorage"
 )
+SpannerVectorDBStorage = lazy_external_import(
+    ".spanner_vector_storage", "SpannerVectorDBStorage"
+)
 
 
 def always_get_an_event_loop() -> asyncio.AbstractEventLoop:
@@ -270,6 +273,7 @@ class PathRAG:
             "OracleGraphStorage": OracleGraphStorage,
             "AGEStorage": AGEStorage,
             "SpannerGraphStorage": SpannerGraphStorage,
+            "SpannerVectorDBStorage": SpannerVectorDBStorage,
         }
 
     async def insert(self, string_or_strings):
