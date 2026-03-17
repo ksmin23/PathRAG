@@ -769,7 +769,7 @@ embedding_func_max_async: int = 16                    # Max concurrent embedding
 # Default uses LiteLLM (litellm_complete), supporting any provider.
 # Examples:
 #   OpenAI    : llm_model_name="gpt-4o"
-#   Gemini    : llm_model_name="gemini/gemini-2.0-flash"
+#   Gemini    : llm_model_name="gemini/gemini-2.5-flash"
 #   Anthropic : llm_model_name="anthropic/claude-sonnet-4-20250514"
 #   Bedrock   : llm_model_name="bedrock/anthropic.claude-3-haiku-20240307-v1:0"
 llm_model_func: callable = litellm_complete
@@ -880,7 +880,7 @@ class MinimalPathRAG:
 | **Extraction Prompt** | Edit `PROMPTS["entity_extraction"]` |
 | **Path Parameters** | Adjust `threshold`, `alpha`, `max_hops` |
 | **Storage Backend** | Implement `BaseKVStorage`, `BaseVectorStorage`, `BaseGraphStorage` |
-| **LLM Provider** | Set `llm_model_name` to any LiteLLM-supported model (e.g. `gemini/gemini-2.0-flash`), or add a custom function in `llm.py` |
+| **LLM Provider** | Set `llm_model_name` to any LiteLLM-supported model (e.g. `gemini/gemini-2.5-flash`), or add a custom function in `llm.py` |
 | **Embedding Model** | Set `embedding_model_name` and `embedding_dim` (e.g. `gemini/gemini-embedding-001`, 3072), or provide a custom `embedding_func` |
 
 ### 9.4 Performance Considerations

@@ -45,7 +45,7 @@ This guide provides detailed instructions for setting up the PathRAG application
 
    # AI Model Settings (powered by LiteLLM – any provider supported)
    # See https://docs.litellm.ai/docs/providers for model name format
-   LLM_MODEL_NAME=gpt-4o                            # e.g. gpt-4o, gemini/gemini-2.0-flash, anthropic/claude-sonnet-4-20250514
+   LLM_MODEL_NAME=gpt-4o                            # e.g. gpt-4o, gemini/gemini-2.5-flash, anthropic/claude-sonnet-4-20250514
    EMBEDDING_MODEL_NAME=text-embedding-3-small       # e.g. text-embedding-3-small, gemini/gemini-embedding-001
    EMBEDDING_DIM=1536                                # Must match the chosen embedding model (e.g. 1536, 3072, 1024)
 
