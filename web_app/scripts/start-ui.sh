@@ -1,8 +1,12 @@
 #!/bin/bash
 # Script to start only the UI on port 3000
 
+# Navigate to project root (two levels up from scripts/)
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$PROJECT_ROOT"
+
 echo "Starting PathRAG UI on port 3000..."
-cd ui
+cd web_app/frontend
 
 # Install dependencies if needed
 if [ ! -d "node_modules" ]; then

@@ -2,7 +2,7 @@
 PathRAG Pipeline Step-by-Step Test Suite
 
 Tests each stage of the PathRAG pipeline as described in the
-PathRAG_Technical_Specification.md. Each step can be run independently.
+docs/PathRAG_Technical_Specification.md. Each step can be run independently.
 
 Prerequisites:
   - Set API keys in examples/networkx/.env (or export them as environment variables)

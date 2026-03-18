@@ -1,6 +1,29 @@
 # Installation Guide
 
-This guide provides detailed instructions for setting up the PathRAG application for development and production environments.
+This guide provides detailed instructions for setting up the PathRAG web application for development and production environments.
+
+## Project Structure
+
+```
+web_app/
+├── backend/                # FastAPI backend server
+│   ├── main.py             # Server entry point
+│   ├── sample.env          # Environment variable template
+│   ├── api/                # API routes and logic
+│   │   ├── auth/           # Authentication (JWT)
+│   │   └── features/       # Feature modules (chats, documents, users, knowledge_graph)
+│   └── models/             # Database models
+├── frontend/               # React frontend
+│   ├── package.json
+│   ├── public/
+│   └── src/
+├── scripts/                # Start scripts
+│   ├── start.sh / .bat     # Start both backend and frontend
+│   ├── start-api.sh / .bat # Start backend only
+│   └── start-ui.sh / .bat  # Start frontend only
+├── INSTALLATION.md         # This file
+└── QUICKSTART.md           # User guide
+```
 
 ## Development Environment Setup
 
@@ -9,7 +32,7 @@ This guide provides detailed instructions for setting up the PathRAG application
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd pathrag
+   cd PathRAG
    ```
 
 2. **Create a virtual environment**
@@ -30,7 +53,12 @@ This guide provides detailed instructions for setting up the PathRAG application
    ```
 
 4. **Set up environment variables**
-   Create a `.env` file in the root directory with the following variables:
+   Copy the sample environment file and modify it with your settings:
+   ```bash
+   cp web_app/backend/sample.env web_app/backend/.env
+   ```
+
+   Key environment variables:
    ```
    # JWT Settings (Required)
    SECRET_KEY=your_secret_key_here  # Use a strong random string, e.g., openssl rand -hex 32
@@ -43,7 +71,7 @@ This guide provides detailed instructions for setting up the PathRAG application
    WORKING_DIR=./data                   # Directory for storing PathRAG data
    UPLOAD_DIR=./uploads                 # Directory for storing uploaded documents
 
-   # AI Model Settings (powered by LiteLLM – any provider supported)
+   # AI Model Settings (powered by LiteLLM - any provider supported)
    # See https://docs.litellm.ai/docs/providers for model name format
    LLM_MODEL_NAME=gpt-4o                            # e.g. gpt-4o, gemini/gemini-2.5-flash, anthropic/claude-sonnet-4-20250514
    EMBEDDING_MODEL_NAME=text-embedding-3-small       # e.g. text-embedding-3-small, gemini/gemini-embedding-001
@@ -92,16 +120,16 @@ This guide provides detailed instructions for setting up the PathRAG application
    **Option 1: Using the start-api script (Recommended)**
    ```bash
    # On Unix/Linux/macOS
-   chmod +x start-api.sh
-   ./start-api.sh
+   chmod +x web_app/scripts/start-api.sh
+   ./web_app/scripts/start-api.sh
 
    # On Windows
-   start-api.bat
+   web_app\scripts\start-api.bat
    ```
 
-   **Option 2: Using the main.py script**
+   **Option 2: Using main.py directly**
    ```bash
-   # Basic start with default settings
+   cd web_app/backend
    python main.py
 
    # With environment variables override
@@ -110,6 +138,8 @@ This guide provides detailed instructions for setting up the PathRAG application
 
    **Option 3: Using uvicorn directly**
    ```bash
+   cd web_app/backend
+
    # Basic start
    uvicorn main:app --host 0.0.0.0 --port 8000
 
@@ -123,19 +153,13 @@ This guide provides detailed instructions for setting up the PathRAG application
    uvicorn main:app --host 0.0.0.0 --port 8443 --ssl-keyfile ./key.pem --ssl-certfile ./cert.pem
    ```
 
-   **Option 4: Using uvicorn with module syntax**
-   ```bash
-   # If your app is in a module structure
-   uvicorn pathrag.main:app --host 0.0.0.0 --port 8000
-   ```
-
    The API will be available at the configured host and port (default: http://localhost:8000)
 
 ### Frontend Setup
 
 1. **Navigate to the frontend directory**
    ```bash
-   cd pathrag-ui
+   cd web_app/frontend
    ```
 
 2. **Install dependencies**
@@ -158,6 +182,18 @@ This guide provides detailed instructions for setting up the PathRAG application
    ```
    The build files will be in the `build` directory.
 
+### Start Both Services
+
+To start both backend and frontend at once:
+```bash
+# On Unix/Linux/macOS
+chmod +x web_app/scripts/start.sh
+./web_app/scripts/start.sh
+
+# On Windows
+web_app\scripts\start.bat
+```
+
 ## Production Deployment
 
 ### Backend Deployment
@@ -171,7 +207,7 @@ This guide provides detailed instructions for setting up the PathRAG application
    ```bash
    # Clone the repository
    git clone <repository-url>
-   cd pathrag
+   cd PathRAG
 
    # Create a virtual environment
    python -m venv .venv
@@ -182,7 +218,7 @@ This guide provides detailed instructions for setting up the PathRAG application
    ```
 
 3. **Set up environment variables**
-   Create a `.env` file with production settings. For production, consider these additional security measures:
+   Create a `.env` file in `web_app/backend/` with production settings:
 
    ```
    # Use a stronger secret key and longer expiration for production
@@ -210,11 +246,14 @@ This guide provides detailed instructions for setting up the PathRAG application
 4. **Run with a production ASGI server**
 
    For production deployments, you should use a production-grade ASGI server rather than the development server.
+   All commands below should be run from the `web_app/backend/` directory.
 
    **Option 1: Using Gunicorn with Uvicorn workers (Recommended for Unix/Linux)**
    ```bash
    # Install Gunicorn
    pip install gunicorn
+
+   cd web_app/backend
 
    # Basic run with 4 worker processes
    gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app
@@ -231,14 +270,16 @@ This guide provides detailed instructions for setting up the PathRAG application
 
    **Option 2: Using Uvicorn directly (Works on all platforms)**
    ```bash
+   cd web_app/backend
+
    # Production mode (no auto-reload)
    uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 
    # With process manager like Supervisor or PM2
    # Example supervisor config:
    # [program:pathrag]
-   # command=/path/to/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
-   # directory=/path/to/pathrag
+   # command=/path/to/PathRAG/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+   # directory=/path/to/PathRAG/web_app/backend
    # user=www-data
    # autostart=true
    # autorestart=true
@@ -248,6 +289,8 @@ This guide provides detailed instructions for setting up the PathRAG application
    ```bash
    # Install Hypercorn
    pip install hypercorn
+
+   cd web_app/backend
 
    # Run with Hypercorn
    hypercorn main:app --bind 0.0.0.0:8000 --workers 4
@@ -274,10 +317,10 @@ This guide provides detailed instructions for setting up the PathRAG application
    [Service]
    User=your_user
    Group=your_group
-   WorkingDirectory=/path/to/pathrag
-   Environment="PATH=/path/to/pathrag/.venv/bin"
-   EnvironmentFile=/path/to/pathrag/.env
-   ExecStart=/path/to/pathrag/.venv/bin/gunicorn -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --timeout 120 main:app
+   WorkingDirectory=/path/to/PathRAG/web_app/backend
+   Environment="PATH=/path/to/PathRAG/.venv/bin"
+   EnvironmentFile=/path/to/PathRAG/web_app/backend/.env
+   ExecStart=/path/to/PathRAG/.venv/bin/gunicorn -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --timeout 120 main:app
    Restart=always
    RestartSec=5
    StartLimitIntervalSec=0
@@ -302,10 +345,10 @@ This guide provides detailed instructions for setting up the PathRAG application
    [Service]
    User=your_user
    Group=your_group
-   WorkingDirectory=/path/to/pathrag
-   Environment="PATH=/path/to/pathrag/.venv/bin"
-   EnvironmentFile=/path/to/pathrag/.env
-   ExecStart=/path/to/pathrag/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+   WorkingDirectory=/path/to/PathRAG/web_app/backend
+   Environment="PATH=/path/to/PathRAG/.venv/bin"
+   EnvironmentFile=/path/to/PathRAG/web_app/backend/.env
+   ExecStart=/path/to/PathRAG/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
    Restart=always
    RestartSec=5
    StartLimitIntervalSec=0
@@ -341,7 +384,7 @@ This guide provides detailed instructions for setting up the PathRAG application
 
 1. **Build the frontend**
    ```bash
-   cd pathrag-ui
+   cd web_app/frontend
    npm install
    npm run build
    ```
@@ -357,7 +400,7 @@ This guide provides detailed instructions for setting up the PathRAG application
        listen 80;
        server_name your-domain.com;
 
-       root /path/to/pathrag-ui/build;
+       root /path/to/PathRAG/web_app/frontend/build;
        index index.html;
 
        location / {
@@ -381,9 +424,9 @@ This guide provides detailed instructions for setting up the PathRAG application
 
 ### Backend Dockerfile
 
-Create a `Dockerfile` in the root directory:
+Create a `Dockerfile` in `web_app/backend/`:
 ```dockerfile
-FROM python:3.9-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -398,10 +441,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8000
 
 # Install Python dependencies
-COPY requirements.txt .
+COPY ../../requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy backend code
 COPY . .
 
 # Create necessary directories
@@ -418,7 +461,7 @@ For a more production-ready setup, you can use a multi-stage build:
 
 ```dockerfile
 # Build stage
-FROM python:3.9-slim AS builder
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
@@ -428,11 +471,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY requirements.txt .
+COPY ../../requirements.txt .
 RUN pip wheel --no-cache-dir --no-deps --wheel-dir /app/wheels -r requirements.txt
 
 # Final stage
-FROM python:3.9-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -450,7 +493,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /app/wheels /wheels
 RUN pip install --no-cache /wheels/*
 
-# Copy application code
+# Copy backend code
 COPY . .
 
 # Create necessary directories
@@ -470,7 +513,7 @@ CMD uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers ${WORKERS:-1} --log
 
 ### Frontend Dockerfile
 
-Create a `Dockerfile` in the `pathrag-ui` directory:
+Create a `Dockerfile` in `web_app/frontend/`:
 ```dockerfile
 FROM node:16-alpine as build
 
@@ -491,7 +534,7 @@ EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 ```
 
-Create an `nginx.conf` file:
+Create an `nginx.conf` file in `web_app/frontend/`:
 ```nginx
 server {
     listen 80;
@@ -512,20 +555,20 @@ server {
 
 ### Docker Compose
 
-Create a `docker-compose.yml` file in the root directory:
+Create a `docker-compose.yml` file in the project root:
 ```yaml
 version: '3'
 
 services:
   backend:
-    build: .
+    build: ./web_app/backend
     ports:
       - "8000:8000"
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
     env_file:
-      - .env
+      - ./web_app/backend/.env
     environment:
       # You can override .env file settings here
       - SECRET_KEY=${SECRET_KEY}
@@ -539,7 +582,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./pathrag-ui
+    build: ./web_app/frontend
     ports:
       - "80:80"
     depends_on:
