@@ -75,6 +75,9 @@ SpannerGraphStorage = lazy_external_import(
 SpannerVectorDBStorage = lazy_external_import(
     ".spanner_vector_storage", "SpannerVectorDBStorage"
 )
+SpannerKVStorage = lazy_external_import(
+    ".spanner_kv_storage", "SpannerKVStorage"
+)
 
 
 def always_get_an_event_loop() -> asyncio.AbstractEventLoop:
@@ -274,6 +277,7 @@ class PathRAG:
             "AGEStorage": AGEStorage,
             "SpannerGraphStorage": SpannerGraphStorage,
             "SpannerVectorDBStorage": SpannerVectorDBStorage,
+            "SpannerKVStorage": SpannerKVStorage,
         }
 
     async def insert(self, string_or_strings):
