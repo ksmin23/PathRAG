@@ -3,6 +3,9 @@ REM Start script for PathRAG application (both API and UI)
 
 echo Starting PathRAG Application...
 
+REM Navigate to project root (two levels up from scripts\)
+cd /d "%~dp0\..\.."
+
 REM Check if Python virtual environment exists
 if not exist .venv (
     echo Python virtual environment not found. Creating one...
@@ -21,14 +24,14 @@ echo Backend dependencies installed.
 
 REM Install frontend dependencies
 echo Installing frontend dependencies...
-cd ui
+cd web_app\frontend
 call npm install
 echo Frontend dependencies installed.
-cd ..
+cd ..\..
 
 REM Start backend in background
 echo Starting backend API on port 8000...
-start cmd /k "call venv\Scripts\activate.bat && python main.py"
+start cmd /k "call .venv\Scripts\activate.bat && cd web_app\backend && python main.py"
 
 REM Wait for backend to start
 echo Waiting for backend to initialize...
@@ -36,7 +39,7 @@ timeout /t 5 /nobreak > nul
 
 REM Start frontend
 echo Starting frontend UI on port 3000...
-cd ui
+cd web_app\frontend
 REM Set environment variables for frontend
 set PORT=3000
 set REACT_APP_API_URL=http://localhost:8000

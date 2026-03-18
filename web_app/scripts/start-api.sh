@@ -9,6 +9,10 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}Starting PathRAG API...${NC}"
 
+# Navigate to project root (two levels up from scripts/)
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$PROJECT_ROOT"
+
 # Check if Python virtual environment exists
 if [ ! -d ".venv" ]; then
     echo -e "${YELLOW}Python virtual environment not found. Creating one...${NC}"
@@ -27,7 +31,7 @@ echo -e "${GREEN}Backend dependencies installed.${NC}"
 
 # Start backend API
 echo -e "${BLUE}Starting backend API on port 8000...${NC}"
-cd "$(dirname "$0")"
+cd web_app/backend
 uvicorn main:app --host 0.0.0.0 --port 8000
 
 echo -e "${GREEN}API server stopped.${NC}"

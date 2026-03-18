@@ -2,7 +2,10 @@
 REM Script to start only the UI on port 3000
 
 echo Starting PathRAG UI on port 3000...
-cd ui
+
+REM Navigate to project root (two levels up from scripts\)
+cd /d "%~dp0\..\.."
+cd web_app\frontend
 
 REM Install dependencies if needed
 if not exist node_modules (

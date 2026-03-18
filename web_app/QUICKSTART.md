@@ -121,5 +121,5 @@ You can install the application as a Progressive Web App (PWA):
 If you encounter any issues:
 
 1. Check the [README.md](README.md) file for detailed documentation
-2. Refer to the [INSTALLATION.md](INSTALLATION.md) for setup troubleshooting
+2. Refer to the [INSTALLATION.md](web_app/INSTALLATION.md) for setup troubleshooting
 3. Contact the system administrator for account-related issues
