@@ -70,13 +70,13 @@ TiDBKVStorage = lazy_external_import(".kg.tidb_impl", "TiDBKVStorage")
 TiDBVectorDBStorage = lazy_external_import(".kg.tidb_impl", "TiDBVectorDBStorage")
 AGEStorage = lazy_external_import(".kg.age_impl", "AGEStorage")
 SpannerGraphStorage = lazy_external_import(
-    ".spanner_graph_storage", "SpannerGraphStorage"
+    ".storage.spanner.graph", "SpannerGraphStorage"
 )
 SpannerVectorDBStorage = lazy_external_import(
-    ".spanner_vector_storage", "SpannerVectorDBStorage"
+    ".storage.spanner.vector", "SpannerVectorDBStorage"
 )
 SpannerKVStorage = lazy_external_import(
-    ".spanner_kv_storage", "SpannerKVStorage"
+    ".storage.spanner.kv", "SpannerKVStorage"
 )
 
 

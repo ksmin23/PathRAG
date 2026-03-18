@@ -41,8 +41,8 @@ os.environ.setdefault("SPANNER_DISABLE_BUILTIN_METRICS", "true")
 from google.cloud import spanner
 from google.cloud.spanner_v1 import param_types
 
-from .base import BaseGraphStorage
-from .utils import logger
+from ...base import BaseGraphStorage
+from ...utils import logger
 
 
 @dataclass

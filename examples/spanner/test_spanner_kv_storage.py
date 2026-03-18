@@ -46,7 +46,7 @@ def _check_env():
 
 def _create_storage(namespace: str = NAMESPACE):
     """Create a SpannerKVStorage instance for testing."""
-    from PathRAG.spanner_kv_storage import SpannerKVStorage
+    from PathRAG.storage.spanner import SpannerKVStorage
     from PathRAG.utils import EmbeddingFunc
     import numpy as np
 
