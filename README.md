@@ -42,37 +42,46 @@ PathRAG combines multiple search strategies:
 
 ```
 PathRAG/
-├── PathRAG/                    # Core library (pip install -e .)
-│   ├── PathRAG.py              # Main PathRAG class
-│   ├── base.py                 # Base configurations
-│   ├── llm.py                  # LLM integrations (OpenAI, LiteLLM, HuggingFace, etc.)
-│   ├── operate.py              # Graph operations
-│   ├── prompt.py               # Prompt templates
-│   ├── storage.py              # Base storage implementations
-│   ├── utils.py                # Utilities
+├── PathRAG/                        # Core library (pip install -e .)
+│   ├── PathRAG.py                  # Main PathRAG class
+│   ├── __init__.py                 # Package exports
+│   ├── base.py                     # Base configurations
+│   ├── llm.py                      # LLM integrations (OpenAI, LiteLLM, HuggingFace, etc.)
+│   ├── operate.py                  # Graph operations
+│   ├── prompt.py                   # Prompt templates
+│   ├── storage.py                  # Base storage implementations
+│   ├── utils.py                    # Utilities
 │   ├── spanner_graph_storage.py    # Spanner graph backend
 │   ├── spanner_kv_storage.py       # Spanner key-value backend
 │   └── spanner_vector_storage.py   # Spanner vector backend
 │
-├── web_app/                    # Web application
-│   ├── backend/                # FastAPI backend server
-│   ├── frontend/               # React frontend
-│   ├── scripts/                # Start scripts (start.sh, start-api.sh, start-ui.sh)
-│   ├── INSTALLATION.md         # Web app installation & deployment guide
-│   ├── QUICKSTART.md           # Web app user guide
-│   └── API_REFERENCE.md        # REST API endpoints & data models
+├── web_app/                        # Web application
+│   ├── backend/                    # FastAPI backend server
+│   │   ├── main.py                 # Server entry point
+│   │   ├── sample.env              # Environment variable template
+│   │   ├── api/                    # API routes (auth, chats, documents, etc.)
+│   │   └── models/                 # Database models
+│   ├── frontend/                   # React frontend
+│   │   ├── package.json
+│   │   ├── public/
+│   │   └── src/
+│   ├── scripts/                    # Start scripts (start.sh, start-api.sh, start-ui.sh)
+│   ├── INSTALLATION.md             # Web app installation & deployment guide
+│   ├── QUICKSTART.md               # Web app user guide
+│   └── API_REFERENCE.md            # REST API endpoints & data models
 │
-├── examples/                   # Usage examples
-│   ├── networkx/               # NetworkX (default) storage examples
-│   └── spanner/                # Google Cloud Spanner storage examples
+├── examples/                       # Usage examples
+│   ├── networkx/                   # NetworkX (default) storage examples
+│   └── spanner/                    # Google Cloud Spanner storage examples
 │
-├── docs/                       # Documentation
+├── docs/                           # Documentation
+│   ├── PathRAG_Technical_Specification.md
 │   ├── spanner_setup_guide.md
 │   └── spanner_graph_storage_plan.md
 │
-├── setup.py                    # Package setup
-├── requirements.txt            # Python dependencies
-└── README.md                   # This file
+├── setup.py                        # Package setup
+├── requirements.txt                # Python dependencies
+└── README.md                       # This file
 ```
 
 ## Quick Start
@@ -144,40 +153,74 @@ with open("./text.txt") as f:
 print(rag.query("your_question", param=QueryParam(mode="hybrid")))
 ```
 
-#### With Other Model Sources (HuggingFace, Ollama, vLLM, ModelScope, Local)
+#### With Ollama (Local Models)
 
 ```python
 import os
-from PathRAG.RAGRunner import RAGRunner
+from PathRAG import PathRAG, QueryParam
+from PathRAG.llm import ollama_model_complete, ollama_embed
+from PathRAG.utils import EmbeddingFunc
 
-backend = "your_model_source"  # hf / vllm / ollama / ms / local
-working_dir = "your_working_dir"
-llm_model_name = "Qwen/Qwen3-0.6B"
-embedding_model_name = "iic/nlp_corom_sentence-embedding_english-base"
+WORKING_DIR = "./your_working_dir"
 
-# Ollama additional parameters
-llm_model_kwargs = {
-    "host": "http://localhost:11434",
-    "options": {"num_ctx": 8192},
-    "timeout": 300,
-} if backend == "ollama" else {}
+if not os.path.exists(WORKING_DIR):
+    os.mkdir(WORKING_DIR)
 
-runner = RAGRunner(
-    backend=backend,
-    working_dir=working_dir,
-    llm_model_name=llm_model_name,
-    embedding_model_name=embedding_model_name,
+rag = PathRAG(
+    working_dir=WORKING_DIR,
+    llm_model_func=ollama_model_complete,
+    llm_model_name="qwen3:0.6b",
     llm_model_max_token_size=8192,
-    llm_model_kwargs=llm_model_kwargs,
-    embedding_dim=768,
-    embedding_max_token_size=5000,
+    embedding_func=EmbeddingFunc(
+        embedding_dim=768,
+        max_token_size=8192,
+        func=lambda texts: ollama_embed(
+            texts, embed_model="nomic-embed-text",
+            host="http://localhost:11434",
+        ),
+    ),
 )
 
 with open("your_data_file", "r", encoding="utf-8") as f:
-    runner.insert_text(f.read())
+    rag.insert(f.read())
 
-answer = runner.query("your_question", mode="hybrid")
-print(answer)
+print(rag.query("your_question", param=QueryParam(mode="hybrid")))
+```
+
+#### With HuggingFace Models
+
+```python
+import os
+from PathRAG import PathRAG, QueryParam
+from PathRAG.llm import hf_model_complete, hf_embedding
+from PathRAG.utils import EmbeddingFunc
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModel
+
+WORKING_DIR = "./your_working_dir"
+
+if not os.path.exists(WORKING_DIR):
+    os.mkdir(WORKING_DIR)
+
+# Load embedding model
+embed_tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5")
+embed_model = AutoModel.from_pretrained("BAAI/bge-small-en-v1.5")
+
+rag = PathRAG(
+    working_dir=WORKING_DIR,
+    llm_model_func=hf_model_complete,
+    llm_model_name="Qwen/Qwen3-0.6B",
+    llm_model_max_token_size=8192,
+    embedding_func=EmbeddingFunc(
+        embedding_dim=384,
+        max_token_size=8192,
+        func=lambda texts: hf_embedding(texts, embed_tokenizer, embed_model),
+    ),
+)
+
+with open("your_data_file", "r", encoding="utf-8") as f:
+    rag.insert(f.read())
+
+print(rag.query("your_question", param=QueryParam(mode="hybrid")))
 ```
 
 #### Batch Insert
