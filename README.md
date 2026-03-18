@@ -45,15 +45,20 @@ PathRAG/
 ├── PathRAG/                        # Core library (pip install -e .)
 │   ├── PathRAG.py                  # Main PathRAG class
 │   ├── __init__.py                 # Package exports
-│   ├── base.py                     # Base configurations
+│   ├── base.py                     # Base classes (StorageNameSpace, BaseKV/Vector/GraphStorage)
 │   ├── llm.py                      # LLM integrations (OpenAI, LiteLLM, HuggingFace, etc.)
 │   ├── operate.py                  # Graph operations
 │   ├── prompt.py                   # Prompt templates
-│   ├── storage.py                  # Base storage implementations
 │   ├── utils.py                    # Utilities
-│   ├── spanner_graph_storage.py    # Spanner graph backend
-│   ├── spanner_kv_storage.py       # Spanner key-value backend
-│   └── spanner_vector_storage.py   # Spanner vector backend
+│   │
+│   └── storage/                    # Storage backend implementations
+│       ├── __init__.py             # Re-exports default implementations
+│       ├── defaults.py             # JsonKVStorage, NanoVectorDBStorage, NetworkXStorage
+│       └── spanner/                # Google Cloud Spanner backend
+│           ├── __init__.py         # Re-exports Spanner classes
+│           ├── kv.py               # SpannerKVStorage
+│           ├── vector.py           # SpannerVectorDBStorage
+│           └── graph.py            # SpannerGraphStorage
 │
 ├── web_app/                        # Web application
 │   ├── backend/                    # FastAPI backend server
@@ -79,7 +84,7 @@ PathRAG/
 │   ├── spanner_setup_guide.md
 │   └── spanner_graph_storage_plan.md
 │
-├── setup.py                        # Package setup
+├── setup.py                        # Package setup (with extras_require)
 ├── requirements.txt                # Python dependencies
 └── README.md                       # This file
 ```
@@ -89,7 +94,18 @@ PathRAG/
 ### Prerequisites
 
 - Python 3.10+
-- `pip install -e .`
+- `pip install -e .` (core only)
+
+Optional extras:
+```bash
+pip install -e ".[spanner]"       # + Google Cloud Spanner storage
+pip install -e ".[huggingface]"   # + HuggingFace models (torch, transformers)
+pip install -e ".[ollama]"        # + Ollama local models
+pip install -e ".[litellm]"       # + LiteLLM multi-provider support
+pip install -e ".[vllm]"          # + vLLM inference
+pip install -e ".[api]"           # + Web application (FastAPI, etc.)
+pip install -e ".[all]"           # Everything
+```
 
 ### Command Line (Library Only)
 
@@ -269,6 +285,10 @@ See `examples/networkx/` for usage examples.
 
 PathRAG includes native Spanner storage backends for production deployments:
 
+```bash
+pip install -e ".[spanner]"
+```
+
 | Storage | Implementation | Description |
 |---------|---------------|-------------|
 | Vector | `SpannerVectorDBStorage` | Spanner native vector search with COSINE_DISTANCE |
@@ -293,6 +313,10 @@ rag = PathRAG(
 
 - **Setup Guide**: [docs/spanner_setup_guide.md](docs/spanner_setup_guide.md)
 - **Examples**: `examples/spanner/`
+
+### Adding Custom Storage Backends
+
+New backends can be added under `PathRAG/storage/<backend>/` with implementations for KV, vector, and/or graph storage. See [docs/spanner_graph_storage_plan.md](docs/spanner_graph_storage_plan.md#storage-package-architecture) for the step-by-step guide.
 
 ### Other Production Options
 
