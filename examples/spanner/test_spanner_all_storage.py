@@ -115,7 +115,7 @@ async def test_step1_kv_storage():
     if not _check_env():
         return
 
-    from PathRAG.spanner_kv_storage import SpannerKVStorage
+    from PathRAG.storage.spanner import SpannerKVStorage
 
     kv = SpannerKVStorage(
         namespace=f"{NS_PREFIX}_kv_smoke",
@@ -166,7 +166,7 @@ async def test_step2_vector_storage():
     if not _check_env():
         return
 
-    from PathRAG.spanner_vector_storage import SpannerVectorDBStorage
+    from PathRAG.storage.spanner import SpannerVectorDBStorage
 
     embed_func = _create_mock_embedding_func(dim=128)
     vdb = SpannerVectorDBStorage(
@@ -202,7 +202,7 @@ async def test_step3_graph_storage():
     if not _check_env():
         return
 
-    from PathRAG.spanner_graph_storage import SpannerGraphStorage
+    from PathRAG.storage.spanner import SpannerGraphStorage
 
     graph = SpannerGraphStorage(
         namespace=f"{NS_PREFIX}_graph_smoke",

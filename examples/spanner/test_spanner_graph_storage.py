@@ -44,7 +44,7 @@ def _check_env():
 
 def _create_storage(namespace: str = "test"):
     """Create a SpannerGraphStorage instance for testing."""
-    from PathRAG.spanner_graph_storage import SpannerGraphStorage
+    from PathRAG.storage.spanner import SpannerGraphStorage
 
     return SpannerGraphStorage(
         namespace=namespace,

@@ -45,9 +45,9 @@ Update the `CREATE OR REPLACE PROPERTY GRAPH` DDL to declare explicit LABEL and 
 ### 5. GQL requires explicit column aliases for literals
 Spanner GQL requires `RETURN` clauses to use explicit aliases for literal values. For example, `RETURN 1` must be written as `RETURN 1 AS result`.
 
-## File to Modify
+## File Location
 
-- **`PathRAG/spanner_graph_storage.py`** — complete rewrite
+- **`PathRAG/storage/spanner/graph.py`** — SpannerGraphStorage implementation
 
 ## Implementation Details
 
@@ -173,9 +173,129 @@ python examples/spanner/test_spanner_graph_storage.py --cleanup-only
 
 ## Verification
 
-1. Ensure the module imports cleanly: `python -c "from PathRAG.spanner_graph_storage import SpannerGraphStorage"`
+1. Ensure the module imports cleanly: `python -c "from PathRAG.storage.spanner import SpannerGraphStorage"`
 2. Verify lazy import in PathRAG.py still works
 3. Review GQL syntax against Spanner documentation (GRAPH keyword, label syntax, property access)
+
+## Storage Package Architecture
+
+### Why This Structure?
+
+PathRAG supports multiple storage backends (Vector, KV, Graph). Previously, all implementations lived as flat files in the top-level `PathRAG/` directory, which became increasingly difficult to manage as more backends were added.
+
+**Problems with the previous layout:**
+- `storage.py`, `spanner_graph_storage.py`, `spanner_kv_storage.py`, and `spanner_vector_storage.py` were mixed in with core modules (`base.py`, `llm.py`, `operate.py`)
+- Adding new backends (Neo4j, Milvus, etc.) would keep growing the number of top-level files
+- It was hard to see at a glance which files belonged to a given backend
+
+**Design principles for the new layout:**
+1. **Separation of concerns** — Storage implementations live in a dedicated `storage/` subpackage, cleanly separated from core logic
+2. **Group by backend** — Each backend's KV, vector, and graph implementations are co-located in a subdirectory for better cohesion
+3. **Lazy imports** — `PathRAG.py` uses `lazy_external_import` to load backends on demand, so users don't need to install dependencies they won't use
+4. **Backward compatibility** — `storage/__init__.py` re-exports the default implementations, preserving existing import paths
+
+### Current Structure
+
+```
+PathRAG/
+├── __init__.py
+├── PathRAG.py              # Main class + lazy_external_import
+├── base.py                 # Base classes (BaseKVStorage, BaseVectorStorage, BaseGraphStorage)
+├── llm.py                  # LLM integrations
+├── operate.py              # Graph operations
+├── prompt.py               # Prompt templates
+├── utils.py                # Utilities
+│
+└── storage/                # All storage implementations
+    ├── __init__.py          # Re-export: JsonKVStorage, NanoVectorDBStorage, NetworkXStorage
+    ├── defaults.py          # Default implementations (JSON, NanoVectorDB, NetworkX)
+    │
+    └── spanner/             # Google Cloud Spanner backend
+        ├── __init__.py      # Re-export: SpannerKVStorage, SpannerVectorDBStorage, SpannerGraphStorage
+        ├── kv.py            # SpannerKVStorage
+        ├── vector.py        # SpannerVectorDBStorage
+        └── graph.py         # SpannerGraphStorage
+```
+
+### How to Add a New Storage Backend
+
+Follow these steps to add a new storage backend.
+
+**1. Create the directory and files**
+
+Example: adding a PostgreSQL (pgvector) backend
+
+```
+PathRAG/storage/postgresql/
+├── __init__.py      # Re-export classes
+├── kv.py            # PostgresKVStorage (implements BaseKVStorage)
+├── vector.py        # PostgresVectorDBStorage (implements BaseVectorStorage)
+└── graph.py         # PostgresGraphStorage (implements BaseGraphStorage) — optional
+```
+
+Each file should inherit from the corresponding base class in `PathRAG.base`:
+
+```python
+# PathRAG/storage/postgresql/vector.py
+from ...base import BaseVectorStorage
+
+class PostgresVectorDBStorage(BaseVectorStorage):
+    async def upsert(self, data): ...
+    async def query(self, query, top_k): ...
+```
+
+**2. Register the lazy imports in `PathRAG.py`**
+
+```python
+PostgresKVStorage = lazy_external_import(
+    ".storage.postgresql.kv", "PostgresKVStorage"
+)
+PostgresVectorDBStorage = lazy_external_import(
+    ".storage.postgresql.vector", "PostgresVectorDBStorage"
+)
+```
+
+**3. Add entries to `_get_storage_class()`**
+
+```python
+def _get_storage_class(self):
+    return {
+        ...
+        "PostgresKVStorage": PostgresKVStorage,
+        "PostgresVectorDBStorage": PostgresVectorDBStorage,
+    }
+```
+
+**4. Add an extras group in `setup.py`**
+
+```python
+extras_require={
+    ...
+    "postgresql": [
+        "psycopg[binary,pool]",
+        "pgvector",
+    ],
+}
+```
+
+**5. Usage**
+
+```python
+rag = PathRAG(
+    working_dir="./data",
+    kv_storage="PostgresKVStorage",
+    vector_storage="PostgresVectorDBStorage",
+)
+```
+
+### Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| Separate `storage/defaults.py` | Keeps default implementations inside the storage package for consistency; re-exported via `__init__.py` |
+| Per-backend `__init__.py` | Enables direct imports such as `from PathRAG.storage.spanner import SpannerGraphStorage` |
+| Retain `lazy_external_import` | Compatible with string-based storage selection (`graph_storage="SpannerGraphStorage"`) and avoids importing packages that may not be installed |
+| Co-locate kv/vector/graph in the same directory | Implementations for the same backend share similar connection setup and schema management, so grouping them together is natural |
 
 ## Known Issues & Fixes
 

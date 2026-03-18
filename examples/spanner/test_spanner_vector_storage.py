@@ -87,7 +87,7 @@ def _create_mock_embedding_func(dim=128):
 
 def _create_vector_storage(namespace: str = VECTOR_TEST_NAMESPACE, meta_fields=None):
     """Create a SpannerVectorDBStorage instance for testing."""
-    from PathRAG.spanner_vector_storage import SpannerVectorDBStorage
+    from PathRAG.storage.spanner import SpannerVectorDBStorage
 
     if meta_fields is None:
         meta_fields = set()

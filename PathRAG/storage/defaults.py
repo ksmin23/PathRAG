@@ -8,14 +8,14 @@ import networkx as nx
 import numpy as np
 from nano_vectordb import NanoVectorDB
 
-from .utils import (
+from ..utils import (
     logger,
     load_json,
     write_json,
     compute_mdhash_id,
 )
 
-from .base import (
+from ..base import (
     BaseGraphStorage,
     BaseKVStorage,
     BaseVectorStorage,
