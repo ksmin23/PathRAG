@@ -896,6 +896,7 @@ class MinimalPathRAG:
 3. **LLM caching**
    - PathRAG caches LLM responses by query hash
    - Implement `embedding_cache_config` for similar query detection
+   - **Remote backend caveat:** The cache stores all responses as a nested JSON dict keyed by `mode` (see `handle_cache` / `save_to_cache` in `utils.py`). On every cache read or write the entire dict must be fetched from the KV store, updated in memory, and written back. This read-modify-write pattern is efficient for the local `JsonKVStorage` (in-memory dict backed by a single JSON file), but causes unnecessary network round-trips and growing payload sizes with remote backends such as Spanner. When using a remote KV backend, set `enable_llm_cache=False` to avoid this overhead.
 
 4. **Async everywhere**
    - All operations are async for parallelization

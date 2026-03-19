@@ -6,13 +6,8 @@ import re
 import struct
 from functools import lru_cache
 from typing import TYPE_CHECKING, List, Dict, Callable, Any, Union, Optional
-import aioboto3
 import aiohttp
 import numpy as np
-import ollama
-import torch
-import modelscope as ms
-from vllm import LLM
 from openai import (
     AsyncOpenAI,
     APIConnectionError,
@@ -27,7 +22,6 @@ from tenacity import (
     wait_exponential,
     retry_if_exception_type,
 )
-from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from .utils import (
     wrap_embedding_func_with_attrs,
@@ -40,8 +34,6 @@ if TYPE_CHECKING:
     from .utils import EmbeddingFunc
 
 import sys
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
 
 if sys.version_info < (3, 9):
     from typing import AsyncIterator
@@ -210,6 +202,7 @@ async def bedrock_complete_if_cache(
                 kwargs.pop(param)
             )
 
+    import aioboto3
     session = aioboto3.Session()
     async with session.client("bedrock-runtime") as bedrock_async_client:
         try:
@@ -222,6 +215,8 @@ async def bedrock_complete_if_cache(
 
 @lru_cache(maxsize=1)
 def initialize_hf_model(model_name):
+    import torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM
     # Use GPU if available, otherwise fall back to CPU
     use_gpu = torch.cuda.is_available()
     dtype = torch.bfloat16 if use_gpu else torch.float32
@@ -331,6 +326,7 @@ async def ollama_model_if_cache(
     host = kwargs.pop("host", None)
     timeout = kwargs.pop("timeout", None)
     kwargs.pop("hashing_kv", None)
+    import ollama
     ollama_client = ollama.AsyncClient(host=host, timeout=timeout)
     messages = []
     if system_prompt:
@@ -935,6 +931,7 @@ async def bedrock_embedding(
         "AWS_SESSION_TOKEN", aws_session_token
     )
 
+    import aioboto3
     session = aioboto3.Session()
     async with session.client("bedrock-runtime") as bedrock_async_client:
         if (model_provider := model.split(".")[0]) == "amazon":
@@ -984,6 +981,7 @@ async def bedrock_embedding(
 
 
 async def hf_embedding(texts: list[str], tokenizer, embed_model) -> np.ndarray:
+    import torch
     device = next(embed_model.parameters()).device
     input_ids = tokenizer(
         texts, return_tensors="pt", padding=True, truncation=True
@@ -998,6 +996,7 @@ async def hf_embedding(texts: list[str], tokenizer, embed_model) -> np.ndarray:
 
 
 async def ms_embedding(texts: list[str], tokenizer, embed_model) -> np.ndarray:
+    import torch
     device = next(embed_model.parameters()).device
     input_ids = tokenizer(
         texts, return_tensors="pt", padding=True, truncation=True
@@ -1014,6 +1013,7 @@ async def ms_embedding(texts: list[str], tokenizer, embed_model) -> np.ndarray:
 async def local_embedding(
     texts: list[str], tokenizer=None, embed_model=None
 ) -> np.ndarray:
+    import torch
     if tokenizer is None or embed_model is None:
         raise ValueError("Tokenizer and model must be provided")
     device = next(embed_model.parameters()).device
@@ -1034,6 +1034,7 @@ async def ollama_embedding(texts: list[str], embed_model, **kwargs) -> np.ndarra
     Deprecated in favor of `embed`.
     """
     embed_text = []
+    import ollama
     ollama_client = ollama.Client(**kwargs)
     for text in texts:
         data = ollama_client.embeddings(model=embed_model, prompt=text)
@@ -1043,6 +1044,7 @@ async def ollama_embedding(texts: list[str], embed_model, **kwargs) -> np.ndarra
 
 
 async def ollama_embed(texts: list[str], embed_model, **kwargs) -> np.ndarray:
+    import ollama
     ollama_client = ollama.Client(**kwargs)
     data = ollama_client.embed(model=embed_model, input=texts)
     return data["embeddings"]
@@ -1051,6 +1053,9 @@ async def ollama_embed(texts: list[str], embed_model, **kwargs) -> np.ndarray:
 @lru_cache(maxsize=1)
 def initialize_ms_model(model_name: str):
     """Load and cache a ModelScope chat model."""
+    import torch
+    import modelscope as ms
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     tokenizer = ms.AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     model = (
         ms.AutoModelForCausalLM.from_pretrained(
@@ -1117,6 +1122,8 @@ async def ms_model_if_cache(
                     + ">\n"
                 )
 
+    import torch
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     input_ids = tokenizer(
         input_prompt, return_tensors="pt", padding=True, truncation=True
     ).to(device)
@@ -1152,6 +1159,9 @@ async def ms_model_complete(
 
 @lru_cache(maxsize=1)
 def initialize_local_model(model_path: str):
+    import torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     model = (
         AutoModelForCausalLM.from_pretrained(
@@ -1220,6 +1230,8 @@ async def local_model_if_cache(
                     + ori_message[msgid]["role"]
                     + ">\n"
                 )
+    import torch
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     input_ids = local_tokenizer(
         input_prompt, return_tensors="pt", padding=True, truncation=True
     ).to(device)
@@ -1257,6 +1269,9 @@ async def local_model_complete(
 @lru_cache(maxsize=1)
 def initialize_vllm_model(model_name: str):
     """Load and cache a vLLM chat model."""
+    import torch
+    from vllm import LLM
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     model = LLM(model_name, device=device, max_model_len=8192)
     return model
 
@@ -1334,6 +1349,7 @@ async def vllm_model_complete(
 
 
 async def vllm_embedding(texts: list[str], tokenizer, embed_model) -> np.ndarray:
+    import torch
     device = next(embed_model.parameters()).device
     input_ids = tokenizer(
         texts, return_tensors="pt", padding=True, truncation=True

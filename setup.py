@@ -17,6 +17,7 @@ setup(
         "numpy",
         "openai",
         "pydantic",
+        "litellm",
         "tenacity",
         "tiktoken",
         "tqdm",
@@ -32,9 +33,6 @@ setup(
         ],
         "ollama": [
             "ollama",
-        ],
-        "litellm": [
-            "litellm",
         ],
         "vllm": [
             "vllm",
@@ -65,7 +63,7 @@ setup(
             "matplotlib",
         ],
         "all": [
-            "PathRAG[spanner,huggingface,ollama,litellm,vllm,api]",
+            "PathRAG[spanner,huggingface,ollama,vllm,api]",
         ],
     },
 )

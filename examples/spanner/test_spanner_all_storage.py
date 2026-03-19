@@ -269,6 +269,14 @@ async def test_step4_pathrag_full_integration():
             },
             chunk_token_size=200,
             chunk_overlap_token_size=50,
+            # Disable LLM response cache. The cache uses "mode" as the key
+            # and stores all cached responses as a nested JSON dict under that
+            # key (see handle_cache / save_to_cache in utils.py). On every
+            # cache read or write the entire dict must be fetched from the
+            # KV store, updated in memory, and written back. This
+            # read-modify-write pattern is fine for local JsonKVStorage but
+            # adds unnecessary round-trips with a remote backend like Spanner.
+            enable_llm_cache=False,
         )
 
         # --- Verify storage types ---

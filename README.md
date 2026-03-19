@@ -308,8 +308,11 @@ rag = PathRAG(
         "spanner_instance_id": "your-instance",
         "spanner_database_id": "your-database",
     },
+    enable_llm_cache=False,
 )
 ```
+
+> **Note on `enable_llm_cache=False`:** The LLM response cache (`handle_cache` / `save_to_cache` in `utils.py`) uses `mode` as the KV key and stores all cached responses as a nested JSON dict under that single key. Every cache read or write must fetch the entire dict from the KV store, update it in memory, and write the whole object back. This read-modify-write pattern works well with local `JsonKVStorage` (in-memory dict), but introduces unnecessary network round-trips and growing payload sizes with a remote backend like Spanner. It is recommended to set `enable_llm_cache=False` when using Spanner storage backends.
 
 - **Setup Guide**: [docs/spanner_setup_guide.md](docs/spanner_setup_guide.md)
 - **Examples**: `examples/spanner/`
