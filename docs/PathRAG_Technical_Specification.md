@@ -1,4 +1,9 @@
-# PathRAG Technical Specification & Blueprint
+# PathRAG Technical Specification
+
+- **Source Repository:** [BUPT-GAMMA/PathRAG](https://github.com/BUPT-GAMMA/PathRAG)
+- **Analyzed Commit:** [`32567bfc`](https://github.com/BUPT-GAMMA/PathRAG/tree/32567bfc93605b8393996d5fa9ccdc0edbb865b2) (2025-12-17)
+- **Initial Document Date:** 2026-03-16
+- **Last Updated:** 2026-03-19
 
 ## Executive Summary
 
@@ -916,6 +921,3 @@ PathRAG's key innovation is the **relational path pruning algorithm** that:
 
 This provides richer context than standard RAG by surfacing **indirect semantic connections** that would otherwise be missed.
 
----
-
-*Generated from PathRAG codebase analysis - Updated March 2026*
