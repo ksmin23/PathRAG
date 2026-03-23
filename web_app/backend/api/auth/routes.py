@@ -1,7 +1,10 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
+
+logger = logging.getLogger("PathRAG")
 
 from models.database import get_db, User
 from .jwt_handler import (
@@ -43,12 +46,17 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
     
     # Create new user
-    hashed_password = get_password_hash(user.password)
-    db_user = User(username=user.username, email=user.email, hashed_password=hashed_password)
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
+    try:
+        hashed_password = get_password_hash(user.password)
+        db_user = User(username=user.username, email=user.email, hashed_password=hashed_password)
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        return db_user
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to register user '{user.username}': {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to register user: {str(e)}")
 
 @router.get("/users/me", response_model=UserSchema)
 async def read_users_me(current_user: User = Depends(get_current_active_user)):

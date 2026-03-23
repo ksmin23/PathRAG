@@ -27,9 +27,7 @@ from odf import teletype
 from ebooklib import epub
 from bs4 import BeautifulSoup
 
-# Neo4j and GraphML related imports
-from neo4j import GraphDatabase
-import networkx as nx
+# Neo4j and GraphML related imports (lazy loaded)
 import json
 import glob
 
@@ -197,6 +195,7 @@ def load_graphml_files(data_dir: str):
     Load all GraphML files from the data directory.
     Returns a list of NetworkX graph objects.
     """
+    import networkx as nx
     graphml_files = glob.glob(os.path.join(data_dir, "*.graphml"))
     graphs = []
     
@@ -215,6 +214,7 @@ def create_neo4j_session(neo4j_config: Neo4jConfig):
     """
     Create a Neo4j database session.
     """
+    from neo4j import GraphDatabase
     try:
         driver = GraphDatabase.driver(
             neo4j_config.uri,
