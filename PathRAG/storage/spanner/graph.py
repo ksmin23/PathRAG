@@ -308,6 +308,13 @@ class SpannerGraphStorage(BaseGraphStorage):
 
         def _txn(transaction):
             # Ensure both endpoint nodes exist (FK constraint).
+            # NOTE: The SELECT-then-INSERT pattern below is safe within a
+            # single transaction, but concurrent upsert_edge calls targeting
+            # the same node could race: both see "not exists" and attempt an
+            # INSERT, causing one to fail with ALREADY_EXISTS.  This is
+            # acceptable for now because PathRAG processes edges sequentially.
+            # If concurrent edge processing is ever introduced, switch to an
+            # atomic INSERT ... WHERE NOT EXISTS DML statement instead.
             for nid in (source_node_id, target_node_id):
                 existing = list(
                     transaction.execute_sql(
