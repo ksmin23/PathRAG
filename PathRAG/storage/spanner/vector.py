@@ -74,6 +74,7 @@ class SpannerVectorDBStorage(BaseVectorStorage):
         self._max_batch_size = cfg.get("embedding_batch_num", 32)
         self._embedding_dim = self.embedding_func.embedding_dim
         self._table_name = f"vdb_{self.namespace}"
+        self._vector_index_name = f"{self._table_name}_embedding_idx"
 
         self.cosine_better_than_threshold = cfg.get(
             "cosine_better_than_threshold", self.cosine_better_than_threshold
@@ -111,28 +112,119 @@ class SpannerVectorDBStorage(BaseVectorStorage):
             return rows[0][0] > 0
 
     def _ensure_schema(self):
-        if self._table_exists(self._table_name):
+        if not self._table_exists(self._table_name):
+            meta_columns = []
+            for field_name in sorted(self.meta_fields):
+                meta_columns.append(f"  {field_name} STRING(MAX)")
+
+            columns = [
+                "  id STRING(MAX) NOT NULL",
+                f"  embedding ARRAY<FLOAT64>(vector_length=>{self._embedding_dim})",
+                "  content STRING(MAX)",
+            ] + meta_columns
+
+            ddl = (
+                f"CREATE TABLE {self._table_name} (\n"
+                + ",\n".join(columns)
+                + "\n) PRIMARY KEY (id)"
+            )
+
+            op = self._database.update_ddl([ddl])
+            op.result()
+            logger.info(
+                f"Spanner schema ensured for vector table '{self._table_name}'"
+            )
+
+        self._ensure_vector_index()
+
+    def _index_exists(self, index_name: str) -> bool:
+        with self._database.snapshot() as snap:
+            rows = list(
+                snap.execute_sql(
+                    "SELECT COUNT(*) FROM information_schema.indexes "
+                    "WHERE table_name = @t AND index_name = @idx",
+                    params={"t": self._table_name, "idx": index_name},
+                    param_types={
+                        "t": param_types.STRING,
+                        "idx": param_types.STRING,
+                    },
+                )
+            )
+            return rows[0][0] > 0
+
+    def _ensure_vector_index(self):
+        """Create a vector index on the embedding column if one does not exist.
+
+        Without this index, every vector query performs a full table scan
+        to compute cosine distance for all rows.  The vector index enables
+        Spanner's ANN search (APPROX_COSINE_DISTANCE), which uses a
+        tree-based structure to narrow the search space significantly.
+
+        Spanner requires the embedding column to have ``vector_length``
+        set before a vector index can reference it.  If the table was
+        created before this requirement was introduced, we ALTER the
+        column first to add the annotation.
+        """
+        if self._index_exists(self._vector_index_name):
             return
 
-        meta_columns = []
-        for field_name in sorted(self.meta_fields):
-            meta_columns.append(f"  {field_name} STRING(MAX)")
+        # Ensure the embedding column has vector_length set; tables
+        # created before the vector index support may lack it.
+        self._ensure_vector_length()
 
-        columns = [
-            "  id STRING(MAX) NOT NULL",
-            f"  embedding ARRAY<FLOAT64>",
-            "  content STRING(MAX)",
-        ] + meta_columns
+        cfg = self.global_config
+        tree_depth = cfg.get("vector_index_tree_depth", 2)
 
         ddl = (
-            f"CREATE TABLE {self._table_name} (\n"
-            + ",\n".join(columns)
-            + "\n) PRIMARY KEY (id)"
+            f"CREATE VECTOR INDEX {self._vector_index_name} "
+            f"ON {self._table_name}(embedding) "
+            f"WHERE embedding IS NOT NULL "
+            f"OPTIONS(distance_type='COSINE', tree_depth={tree_depth})"
         )
-
         op = self._database.update_ddl([ddl])
         op.result()
-        logger.info(f"Spanner schema ensured for vector table '{self._table_name}'")
+        logger.info(
+            f"Vector index '{self._vector_index_name}' created "
+            f"on '{self._table_name}'"
+        )
+
+    def _ensure_vector_length(self):
+        """ALTER the embedding column to add vector_length if missing.
+
+        Spanner's VECTOR INDEX requires the leading key column to have
+        ``vector_length`` set.  Tables created with a plain
+        ``ARRAY<FLOAT64>`` column will fail at index creation time
+        without this annotation.
+        """
+        with self._database.snapshot() as snap:
+            rows = list(
+                snap.execute_sql(
+                    "SELECT c.SPANNER_TYPE "
+                    "FROM information_schema.columns c "
+                    "WHERE c.TABLE_NAME = @t AND c.COLUMN_NAME = 'embedding'",
+                    params={"t": self._table_name},
+                    param_types={"t": param_types.STRING},
+                )
+            )
+
+        if not rows:
+            return
+
+        spanner_type = rows[0][0]
+        if "vector_length" in spanner_type.lower():
+            return
+
+        ddl = (
+            f"ALTER TABLE {self._table_name} "
+            f"ALTER COLUMN embedding "
+            f"ARRAY<FLOAT64>(vector_length=>{self._embedding_dim})"
+        )
+        op = self._database.update_ddl([ddl])
+        op.result()
+        logger.info(
+            f"Altered column embedding on '{self._table_name}' "
+            f"to set vector_length={self._embedding_dim}"
+        )
 
     # ------------------------------------------------------------------
     # Upsert
@@ -205,7 +297,41 @@ class SpannerVectorDBStorage(BaseVectorStorage):
         return list_data
 
     # ------------------------------------------------------------------
-    # Query (cosine similarity via COSINE_DISTANCE)
+    # Query (ANN via APPROX_COSINE_DISTANCE + Vector Index)
+    # ------------------------------------------------------------------
+    #
+    # Why we use APPROX_COSINE_DISTANCE instead of COSINE_DISTANCE:
+    #
+    # A naive query like:
+    #
+    #   SELECT id, (1.0 - COSINE_DISTANCE(embedding, @q)) AS similarity
+    #   FROM table ORDER BY similarity DESC LIMIT @k
+    #
+    # has two problems that prevent Spanner from using its KNN optimiser:
+    #
+    #  1. Wrapping the distance in an expression (1.0 - ...) and sorting
+    #     by the derived alias hides the KNN pattern from the query
+    #     planner, so every query degrades to a full table scan that
+    #     computes cosine distance for every single row.
+    #
+    #  2. Even with a bare ``ORDER BY COSINE_DISTANCE(...)``, Spanner
+    #     still performs an *exact* KNN scan without a vector index —
+    #     which is O(n) on table size.
+    #
+    # By creating a VECTOR INDEX (see _ensure_vector_index) and querying
+    # with APPROX_COSINE_DISTANCE + FORCE_INDEX, Spanner performs an
+    # approximate nearest-neighbour (ANN) search using its tree-based
+    # index structure, reducing query cost from O(n) to O(log n).
+    # The ``num_leaves_to_search`` option controls the accuracy/speed
+    # trade-off: higher values yield more accurate results at the cost
+    # of increased latency.
+    #
+    # IMPORTANT: Spanner restricts APPROX_COSINE_DISTANCE to the
+    # ORDER BY clause only — it cannot appear in SELECT or WHERE.
+    # Therefore we use COSINE_DISTANCE in SELECT to obtain the actual
+    # distance value, and APPROX_COSINE_DISTANCE solely in ORDER BY
+    # to drive the ANN index scan.  Similarity (1.0 - distance) is
+    # then computed in Python.
     # ------------------------------------------------------------------
 
     async def query(self, query: str, top_k=5):
@@ -217,12 +343,23 @@ class SpannerVectorDBStorage(BaseVectorStorage):
         if self.meta_fields:
             meta_select = ", " + ", ".join(sorted(self.meta_fields))
 
+        num_leaves = self.global_config.get("num_leaves_to_search", 100)
+
+        # APPROX_COSINE_DISTANCE can ONLY appear in the ORDER BY clause.
+        # Spanner rejects it in SELECT or WHERE.  We use COSINE_DISTANCE
+        # in SELECT to obtain the actual distance value for each result.
+        approx_order = (
+            f"APPROX_COSINE_DISTANCE(embedding, @query_embedding, "
+            f"""options => JSON '{{"num_leaves_to_search": {num_leaves}}}')"""
+        )
+
         sql = (
-            f"SELECT id, content, "
-            f"(1.0 - COSINE_DISTANCE(embedding, @query_embedding)) AS similarity"
-            f"{meta_select} "
-            f"FROM {self._table_name} "
-            f"ORDER BY similarity DESC "
+            f"SELECT id, content{meta_select}, "
+            f"COSINE_DISTANCE(embedding, @query_embedding) AS distance "
+            f"FROM {self._table_name}"
+            f"@{{FORCE_INDEX={self._vector_index_name}}} "
+            f"WHERE embedding IS NOT NULL "
+            f"ORDER BY {approx_order} ASC "
             f"LIMIT @top_k"
         )
 
@@ -243,10 +380,12 @@ class SpannerVectorDBStorage(BaseVectorStorage):
 
         results = []
         sorted_meta = sorted(self.meta_fields)
+        distance_idx = 2 + len(sorted_meta)
         for row in rows:
             doc_id = row[0]
             content = row[1]
-            similarity = row[2]
+            distance = row[distance_idx]
+            similarity = 1.0 - distance
 
             # Filter by cosine similarity threshold
             if similarity < self.cosine_better_than_threshold:
@@ -258,7 +397,7 @@ class SpannerVectorDBStorage(BaseVectorStorage):
                 "distance": similarity,
             }
             for idx, field_name in enumerate(sorted_meta):
-                result[field_name] = row[3 + idx]
+                result[field_name] = row[2 + idx]
             results.append(result)
 
         return results
