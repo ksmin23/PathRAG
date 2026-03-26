@@ -423,5 +423,76 @@ class SpannerGraphStorage(BaseGraphStorage):
             f"(graph={self._graph_name})"
         )
 
+    async def find_paths_between(
+        self, source_nodes: list[str], max_hops: int = 3
+    ) -> dict:
+        """Find paths (up to *max_hops*) between *source_nodes* using GQL.
+
+        Returns a dict with keys ``"one_hop"``, ``"two_hop"``, ``"three_hop"``
+        where each value is a list of paths (each path is a list of node ids).
+        Only paths whose **both endpoints** are in *source_nodes* are returned.
+        """
+        if not source_nodes:
+            return {"one_hop": [], "two_hop": [], "three_hop": []}
+
+        ptypes = {"nodes": param_types.Array(param_types.STRING)}
+
+        one_hop: list[list[str]] = []
+        two_hop: list[list[str]] = []
+        three_hop: list[list[str]] = []
+
+        # 1-hop
+        if max_hops >= 1:
+            rows = self._gql(
+                f"GRAPH {self._graph_name} "
+                f"MATCH (a:Entity)-[:Relationship]->(b:Entity) "
+                f"WHERE a.id IN UNNEST(@nodes) AND b.id IN UNNEST(@nodes) "
+                f"AND a.id != b.id "
+                f"RETURN a.id AS src, b.id AS tgt",
+                params={"nodes": source_nodes},
+                ptypes=ptypes,
+            )
+            one_hop = [[r[0], r[1]] for r in rows]
+
+        # 2-hop
+        if max_hops >= 2:
+            rows = self._gql(
+                f"GRAPH {self._graph_name} "
+                f"MATCH (a:Entity)-[:Relationship]->(m:Entity)"
+                f"-[:Relationship]->(b:Entity) "
+                f"WHERE a.id IN UNNEST(@nodes) AND b.id IN UNNEST(@nodes) "
+                f"AND a.id != b.id AND m.id != a.id AND m.id != b.id "
+                f"RETURN a.id AS src, m.id AS mid, b.id AS tgt",
+                params={"nodes": source_nodes},
+                ptypes=ptypes,
+            )
+            two_hop = [[r[0], r[1], r[2]] for r in rows]
+
+        # 3-hop
+        if max_hops >= 3:
+            rows = self._gql(
+                f"GRAPH {self._graph_name} "
+                f"MATCH (a:Entity)-[:Relationship]->(m1:Entity)"
+                f"-[:Relationship]->(m2:Entity)-[:Relationship]->(b:Entity) "
+                f"WHERE a.id IN UNNEST(@nodes) AND b.id IN UNNEST(@nodes) "
+                f"AND a.id != b.id "
+                f"AND m1.id != a.id AND m1.id != b.id "
+                f"AND m2.id != a.id AND m2.id != b.id AND m2.id != m1.id "
+                f"RETURN a.id AS src, m1.id AS mid1, m2.id AS mid2, b.id AS tgt",
+                params={"nodes": source_nodes},
+                ptypes=ptypes,
+            )
+            three_hop = [[r[0], r[1], r[2], r[3]] for r in rows]
+
+        logger.info(
+            f"find_paths_between: {len(one_hop)} 1-hop, "
+            f"{len(two_hop)} 2-hop, {len(three_hop)} 3-hop paths"
+        )
+        return {
+            "one_hop": one_hop,
+            "two_hop": two_hop,
+            "three_hop": three_hop,
+        }
+
     async def embed_nodes(self, algorithm: str):
         raise NotImplementedError("Node embedding is not used in PathRAG.")

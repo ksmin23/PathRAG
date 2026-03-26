@@ -1113,21 +1113,39 @@ async def _find_most_related_edges_from_entities3(
     query_param: QueryParam,
     knowledge_graph_inst: BaseGraphStorage,
 ):
-    G = nx.Graph()
-    edges = await knowledge_graph_inst.edges()
-    nodes = await knowledge_graph_inst.nodes()
-
-    for u, v in edges:
-        G.add_edge(u, v)
-    G.add_nodes_from(nodes)
     source_nodes = [dp["entity_name"] for dp in node_datas]
-    (
-        result,
-        path_stats,
-        one_hop_paths,
-        two_hop_paths,
-        three_hop_paths,
-    ) = await find_paths_and_edges_with_stats(G, source_nodes)
+
+    # If the graph storage supports server-side path finding (e.g. Spanner
+    # GQL), use it to avoid loading the entire graph into memory.
+    if hasattr(knowledge_graph_inst, "find_paths_between"):
+        path_result = await knowledge_graph_inst.find_paths_between(
+            source_nodes, max_hops=3
+        )
+        one_hop_paths = path_result["one_hop"]
+        two_hop_paths = path_result["two_hop"]
+        three_hop_paths = path_result["three_hop"]
+
+        # Build the same {(src, tgt): {"paths": [...]}} structure used by
+        # bfs_weighted_paths below.
+        result = defaultdict(lambda: {"paths": [], "edges": set()})
+        for p in one_hop_paths + two_hop_paths + three_hop_paths:
+            key = (p[0], p[-1])
+            result[key]["paths"].append(p)
+    else:
+        G = nx.Graph()
+        edges = await knowledge_graph_inst.edges()
+        nodes = await knowledge_graph_inst.nodes()
+
+        for u, v in edges:
+            G.add_edge(u, v)
+        G.add_nodes_from(nodes)
+        (
+            result,
+            path_stats,
+            one_hop_paths,
+            two_hop_paths,
+            three_hop_paths,
+        ) = await find_paths_and_edges_with_stats(G, source_nodes)
 
     threshold = 0.3
     alpha = 0.8
@@ -1137,7 +1155,7 @@ async def _find_most_related_edges_from_entities3(
         for node2 in source_nodes:
             if node1 != node2 and (node1, node2) in result:
                 paths = result[(node1, node2)]["paths"]
-                weighted = bfs_weighted_paths(G, paths, node1, node2, threshold, alpha)
+                weighted = bfs_weighted_paths(None, paths, node1, node2, threshold, alpha)
                 all_results += weighted
 
     all_results = sorted(all_results, key=lambda x: x[1], reverse=True)
