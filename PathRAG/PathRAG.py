@@ -79,6 +79,23 @@ SpannerKVStorage = lazy_external_import(
     ".storage.spanner.kv", "SpannerKVStorage"
 )
 
+# ---------------------------------------------------------------------------
+# External storage registry – allows third-party packages to register their
+# storage classes without modifying this file.
+#
+# Usage (from an external package, e.g. pathrag_bigquery):
+#
+#     from PathRAG.PathRAG import register_storage
+#     register_storage("BigQueryKVStorage", BigQueryKVStorage)
+# ---------------------------------------------------------------------------
+
+_EXTERNAL_STORAGES: dict[str, type] = {}
+
+
+def register_storage(name: str, cls: type) -> None:
+    """Register an external storage class so it can be referenced by name."""
+    _EXTERNAL_STORAGES[name] = cls
+
 
 def always_get_an_event_loop() -> asyncio.AbstractEventLoop:
     """
@@ -263,7 +280,7 @@ class PathRAG:
         )
 
     def _get_storage_class(self) -> Type[BaseGraphStorage]:
-        return {
+        builtin = {
             "JsonKVStorage": JsonKVStorage,
             "OracleKVStorage": OracleKVStorage,
             "MongoKVStorage": MongoKVStorage,
@@ -281,6 +298,7 @@ class PathRAG:
             "SpannerVectorDBStorage": SpannerVectorDBStorage,
             "SpannerKVStorage": SpannerKVStorage,
         }
+        return {**builtin, **_EXTERNAL_STORAGES}
 
     async def insert(self, string_or_strings):
         loop = always_get_an_event_loop()
